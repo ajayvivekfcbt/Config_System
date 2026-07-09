@@ -1,0 +1,131 @@
+     H OPTION(*SRCSTMT : *NODEBUGIO) CVTOPT(*NODATETIME) ALWNULL(*USRCTL)
+     H DFTACTGRP(*NO) ACTGRP(*CALLER) BNDDIR('QC2LE' : 'UTBIND' : 'UTCFG')
+      // -------------------------------------------------------------------------------------------
+      //
+      // Program  : UT2064 - Configuration Scope Select List
+      // Project  : Infrastructure - Configuration
+      // Author.  : G.Neale                          Date. . : 11/27/2011
+      //
+      // Narrative: Provide a secondary select list for file UTCFGSCP - used to
+      //            compare variable values between scopes
+      //
+      // -------------------------------------------------------------------------------------------
+      // Modification History:
+      //--------------------------------------------------------------------------------------------
+      //
+      // -------------------------------------------------------------------------------------------
+     FUT2064D   CF   E             WORKSTN SFILE(WW_LIST_S : @R1)
+     F                                     INFDS(#WS)
+
+      *--------------------------------------------------------------------
+      * Define specific prototypes
+      *--------------------------------------------------------------------
+     D EntryParms      PR                  EXTPGM('UT2064')
+     D                                9B 0 const                                Server ID
+     D                                9B 0 const                                Scope ID 1
+     D                                1A                                        End FKey
+
+     D EntryParms      PI
+     D   @ServerID                    9B 0 const                                Entry ID
+     D   @ScopeID1                    9B 0 const                                Entry ID
+     D   @EndFKey                     1A                                        End FKey
+
+     D CompareVariables...
+     D                 PR                  EXTPGM('UT2065')
+     D                                9B 0 const                                First Scope
+     D                                9B 0 const                                Second Scope
+     D                                1A                                        End FKey
+
+      /Copy QCPYSRC,UTCFG_PR
+      /Copy QCPYSRC,UTCOM_WW
+
+      /FREE
+
+       //--------------------------------------------------------------------
+
+       Begsr $Load_Subfile;
+
+       // Retrieve the data for display
+
+           EXEC SQL
+               DECLARE LIST_CURSOR CURSOR FOR
+               SELECT   SCP.SCP_ID, SCP.SCP_NAME, SCP.SCP_DESC,
+                        COALESCE(SRM.SRM_NAME,' ')
+               FROM     UTCFGSCP SCP
+                            JOIN
+                        UTCFGSRM SRM ON SRM.SRM_ID = SCP.SRM_ID
+               WHERE    SCP.SRV_ID = :@ServerID AND
+                        SCP.SCP_ID <> :@ScopeID1 AND
+                        SCP.SCP_IS_SRV = 0
+               ORDER BY UPPER(SCP.SCP_NAME);
+
+           EXEC SQL OPEN LIST_CURSOR;
+
+           DOU SQLCOD <> *zero;
+
+               EXEC SQL
+                   FETCH LIST_CURSOR
+                   INTO  :@ID, :@NAME, :@DESC, :@SRMNAME;
+
+               If SQLCOD = *zero;
+                   Exsr $Write_Subfile_Record;
+               Endif;
+           Enddo;
+
+           EXEC SQL CLOSE LIST_CURSOR;
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+    
+       Begsr $Check_Function_Key_Requests;
+
+         @ErrorMsg = 'Function key defined but not conditioned for';
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+    
+       Begsr $Process_One_Option;
+
+       // Condition function based upon option and authority
+
+           If @Option = 54;
+              CompareVariables(@ScopeID1 : @ID : @EndFKey);
+              #WS.FunctionKeyPressed = @EndFKey;
+           Else;
+              @ErrorMsg = 'Option ' + %Char(@Option) +
+                          ' is defined but not supported by code';
+           Endif;
+
+       Endsr;
+
+       //--------------------------------------------------------------------
+
+       Begsr $Data_Initialization;
+
+       // Set header values
+
+          @Scp_Title = %trim(ConfigFullScope(@ScopeID1)) + ' - ' +
+                       %trim(ConfigScopeDesc(@ScopeID1));
+
+       // Set tables and rights required
+
+           @TableNames(1)  = 'UTCFGSRV';
+           @TableRights(1) = 'R   ';
+           @TableNames(2)  = 'UTCFGSCP';
+           @TableRights(2) = 'R   ';
+
+       // Set valid options
+
+           @AvlOpt(54) = '54=Compare Variables';
+
+       // Set valid function keys
+
+           @AvlFnc(3)  = 'F3=Exit';
+           @AvlFnc(5)  = 'F5=Refresh';
+           @AvlFnc(12) = 'F12=Cancel';
+
+       Endsr;
+    
+       //--------------------------------------------------------------------

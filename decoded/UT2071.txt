@@ -1,0 +1,284 @@
+     H OPTION(*SRCSTMT : *NODEBUGIO) CVTOPT(*NODATETIME) ALWNULL(*USRCTL)
+     H DFTACTGRP(*NO) ACTGRP(*CALLER) BNDDIR('QC2LE' : 'UTBIND' : 'UTCFG')
+      // -------------------------------------------------------------------------------------------
+      //
+      // Program  : UT2071 - Conform Configuration Scope Resolution Methods
+      // Project  : Infrastructure - Configuration
+      // Author.  : G.Neale                          Date. . : 11/25/2011
+      //
+      // Narrative: Provide ability to conform values across servers
+      //
+      // -------------------------------------------------------------------------------------------
+      // Modification History:
+      //--------------------------------------------------------------------------------------------
+      //
+      // -------------------------------------------------------------------------------------------
+     FUT2071D   CF   E             WORKSTN SFILE(WW_LIST_S : @R1)
+     F                                     INFDS(#WS)
+
+      *--------------------------------------------------------------------
+      * Define entry prototype and procedure interface
+      *--------------------------------------------------------------------
+     D EntryParms      PR                  EXTPGM('UT2071')
+     D                               20A                                        Remote Server
+     D                                1A                                        End FKey
+
+     D EntryParms      PI
+     D   @Remote                     20A                                        Remote Server
+     D   @EndFKey                     1A                                        End FKey
+
+      *--------------------------------------------------------------------
+      * Define specific prototypes
+      *--------------------------------------------------------------------
+     D StageRemoteSRM...
+     D                 PR                  EXTPGM('UT2081')
+     D                               20A                                        Remote Server
+
+      *--------------------------------------------------------------------
+      * Define database work structure
+      *--------------------------------------------------------------------
+     D @DB           E DS                  ExtName(UTCFGSRM) INZ
+
+      *--------------------------------------------------------------------
+      * Define specific variables
+      *--------------------------------------------------------------------
+     D  @StageError    S            512A   Varying                              Stage build error
+     D  L@Len          S             10I 0
+     D  R@Len          S             10I 0
+     D  @WorkMsg       S            129A
+     D  @Delete        S               N                                        Implied delete flag
+     D  @Local         S             20A                                        Local Server
+
+      /Copy QCPYSRC,UTCFG_PR
+      /Copy QCPYSRC,UTCOM_WW
+
+      /FREE
+
+       //--------------------------------------------------------------------
+
+       Begsr $Load_Subfile;
+
+       // Determine maximum code length - local
+
+          EXEC SQL
+             SELECT   MAX(LENGTH(TRIM(SRM_NAME)))
+             INTO     :L@LEN
+             FROM     UTCFGSRM;
+
+       // Determine maximum code length - remote
+
+          EXEC SQL
+             SELECT   MAX(LENGTH(TRIM(SRM_NAME)))
+             INTO     :R@LEN
+             FROM     TEMP_SRM;
+
+       // Retrieve the data for display
+
+          EXEC SQL DECLARE LIST_CURSOR CURSOR FOR
+             SELECT   COALESCE(L.SRM_ID,0),
+                      COALESCE(L.SRM_NAME,' '),
+                      COALESCE(L.SRM_DESC,' '),
+                      COALESCE(TRIM(L.SRM_INFO),' '),
+                      COALESCE(R.SRM_ID,'0'),
+                      COALESCE(R.SRM_NAME,' '),
+                      COALESCE(R.SRM_DESC,' '),
+                      COALESCE(TRIM(R.SRM_INFO),' ')
+             FROM     UTCFGSRM L
+                         FULL JOIN
+                      TEMP_SRM R ON UPPER(R.SRM_NAME) = UPPER(L.SRM_NAME)
+             ORDER BY CASE WHEN L.SRM_NAME IS NULL THEN UPPER( R.SRM_NAME)
+                           ELSE UPPER(L.SRM_NAME) END;
+
+          EXEC SQL OPEN LIST_CURSOR;
+
+          DOU SQLCOD <> *zero;
+
+             EXEC SQL
+                FETCH LIST_CURSOR INTO
+                   :L@ID, :L@NAME, :L@DESC, :L@INFO,
+                   :R@ID, :R@NAME, :R@DESC, :R@INFO;
+
+             If SQLCOD = *zero;
+
+                If L@Name <> *blank;
+                   L@Value = %subst(L@NAME : 1 : L@LEN) + ' - ' + %trim(L@DESC);
+                Else;
+                   L@Value = x'28' + 'Row does not exist';
+                Endif;
+
+                If R@Name <> *blank;
+                   R@Value = %subst(R@NAME : 1 : R@LEN) + ' - ' + %trim(R@DESC);
+                Else;
+                   R@Value = x'28' + 'Row does not exist';
+                Endif;
+
+                If L@ID = *zero or
+                   R@ID = *zero or
+                   L@Name <> R@Name or
+                   L@Desc <> R@Desc or
+                   L@Info <> R@Info;
+                   *IN70 = *On;
+                Else;
+                   *IN70 = *Off;
+                Endif;
+
+                Exsr $Write_Subfile_Record;
+             Endif;
+          Enddo;
+
+          EXEC SQL CLOSE LIST_CURSOR;
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+    
+       Begsr $Check_Function_Key_Requests;
+    
+       // No functions supported
+
+          @ErrorMsg = 'Function key defined but not conditioned for';
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+    
+       Begsr $Process_One_Option;
+
+       // Condition function based upon option and authority
+
+          If @Option = 54 or
+             @Option = 33;
+             Exsr $One_Option_Detail;
+          Else;
+             @ErrorMsg = 'Option ' + %Char(@Option) +
+                         ' is defined but not supported by code';
+          Endif;
+
+       Endsr;
+
+       //--------------------------------------------------------------------
+
+       Begsr $One_Option_Detail;
+
+       // Determine if implied delete (exists on local but not on remote)
+
+          If L@ID <> *zero and
+             R@ID = *zero;
+             @Delete = *On;
+          Else;
+             @Delete = *Off;
+          Endif;
+
+       // If no error message to display, load option specific value
+
+          If @Option = 54;
+             @WorkMsg = '* Press "ENTER" to continue.';
+          ElseIf @Option = 33 and not @Delete;
+             @WorkMsg = '* Press "ENTER" to copy ' +
+                         %trim(@Remote) + ' values to ' + %trim(@Local);
+          ElseIf @Option = 33 and @Delete;
+             @WorkMsg = 'Row does not exist on remote server - ' +
+                        'implied delete function is not supported.';
+          Endif;
+
+          If not @Delete;
+             EvalR @WorkMsg = %trim(@WorkMsg);
+             %subst(@WorkMsg : 1 : 1) = x'41';
+          Endif;
+          SendSubfileMessage(@Program : %trimr(@WorkMsg));
+          Clear @WorkMsg;
+
+       // Set screen conditions and values
+
+          *IN71 = L@Name <> R@Name;
+          *IN72 = L@Desc <> R@Desc;
+          *IN73 = L@Info <> R@Info;
+
+          L@InfoD = %trimr(L@Info);
+          R@InfoD = %trimr(R@Info);
+
+       // Process detail screen
+
+          Write Msg_Ctl;
+          Exfmt OneRow_D;
+          ClearSubfileMessages(@Program);
+
+       // Check action required
+
+          If #WS.FunctionKeyPressed = #Cancel;
+             #WS.FunctionKeyPressed = #Enter;
+          ElseIf #WS.FunctionKeyPressed <> #Exit;
+             If @Option = 33 and not @Delete;
+                Exsr $Local_Update;
+             Endif;
+          Endif;
+
+       Endsr;
+
+       //--------------------------------------------------------------------
+
+       Begsr $Local_Update;
+
+       // Prep data values from screen values
+
+          Srm_ID   = L@ID;
+          Srm_Name = R@Name;
+          Srm_Desc = R@Desc;
+          Srm_Info = %trim(R@Info);
+
+       // Update the database
+
+          If L@ID = *zero;
+             ConfigMethodInsert(@DB);
+          Else;
+             ConfigMethodUpdate(@DB);
+          Endif;
+
+          @ReloadSfl = *On;
+
+       Endsr;
+
+       //--------------------------------------------------------------------
+
+       Begsr $Data_Initialization;
+
+       // Set current server name
+
+          Exec Sql
+             Select   Current Server
+             Into     :@Local
+             From     Sysibm/SysDummy1;
+
+       // Set header values
+
+           L@Header1 = CenterString(%len(L@Header1) :
+                       %trim(@Local) + ' Source Resolution Methods');
+           L@Header2 = CenterString(%len(L@Header2) : L@Header1);
+           R@Header1 = CenterString(%len(R@Header1) :
+                       %trim(@Remote) + ' Source Resolution Methods');
+           R@Header2 = CenterString(%len(R@Header2) : R@Header1);
+
+       // Set tables and rights required
+
+           @TableNames(1)  = 'UTCFGSRM';
+           @TableRights(1) = 'CRUD';
+
+       // Set valid options
+
+           @AvlOpt(33) = '33=Copy ' + %trim(@Remote) +
+                         ' values to ' + %trim(@Local);
+           @AvlOpt(54) = '54=Compare Values';
+
+       // Set valid function keys
+
+           @AvlFnc(3)  = 'F3=Exit';
+           @AvlFnc(5)  = 'F5=Refresh';
+           @AvlFnc(12) = 'F12=Cancel';
+
+       // Load remote table for processing
+
+          StageRemoteSRM(@Remote);
+
+       Endsr;
+    
+       //--------------------------------------------------------------------

@@ -1,0 +1,66 @@
+     A*%%TS  SD  20110310  162823  U4142GJN    REL-V6R1M0  5761-WDS
+     A*%%EC
+     A                                      DSPSIZ(27 132 *DS4)
+     A                                      CF01 CF02 CF03 CF04 CF05 CF06
+     A                                      CF07 CF08 CF09 CF10 CF11 CF12
+     A                                      CF13 CF14 CF15 CF16 CF17 CF18
+     A                                      CF19 CF20 CF21 CF22 CF23 CF24
+     A                                      HELP PRINT CLEAR
+     A                                      PAGEUP PAGEDOWN
+     A          R WW_LIST_S                 SFL
+     A*%%TS  SD  20110228  105529  U4142GJN    REL-V6R1M0  5761-WDS
+     A            @ID           10S 0H
+     A            @OPTION        2Y 0B  7  3EDTCDE(Z)
+     A                                      DSPATR(HI)
+     A            @NAME         20A  O  7  7
+     A            @DESC         50A  O  7 29
+     A          R WW_LIST_C                 SFLCTL(WW_LIST_S)
+     A*%%TS  SD  20110310  162823  U4142GJN    REL-V6R1M0  5761-WDS
+     A                                      SFLSIZ(0600)
+     A                                      SFLPAG(0018)
+     A                                      OVERLAY
+     A  41                                  SFLDSP
+     A  40                                  SFLDSPCTL
+     A N40                                  SFLCLR
+     A  41                                  SFLEND(*MORE)
+     A            @POSITION      4S 0H      SFLRCDNBR(CURSOR)
+     A                                  1  2DATE
+     A                                      EDTCDE(Y)
+     A                                  1 11TIME
+     A                                  1 20USER
+     A                                  1 50'Configuration - Work with Servers'
+     A                                      DSPATR(HI)
+     A                                  1102SYSNAME
+     A            @PROGRAM      10A  O  1111
+     A                                  1122'WW_LIST_S'
+     A                                  3  2'Type options, press Enter.'
+     A                                      COLOR(BLU)
+     A            @OPTIONS     128   O  4  4COLOR(BLU)
+     A                                  6  2'Opt'
+     A                                      DSPATR(HI)
+     A                                      DSPATR(UL)
+     A                                  6  7'    Server Name     '
+     A                                      DSPATR(HI)
+     A                                      DSPATR(UL)
+     A                                  6 29'                Server Description-
+     A                                                      '
+     A                                      DSPATR(UL)
+     A                                      DSPATR(HI)
+     A          R WW_LIST_O
+     A*%%TS  SD  20110228  100050  U4142GJN    REL-V6R1M0  5761-WDS
+     A                                      OVERLAY
+     A            @FUNCTIONS   130   O 26  2COLOR(BLU)
+     A          R MSG_SFL                   SFL
+     A                                      SFLMSGRCD(27)
+     A            @MSGKEY                   SFLMSGKEY
+     A            @PROGRAM                  SFLPGMQ
+     A
+     A          R MSG_CTL                   SFLCTL(MSG_SFL)
+     A                                      SFLSIZ(0100)
+     A                                      SFLPAG(0001)
+     A                                      OVERLAY
+     A                                      SFLDSP
+     A                                      SFLDSPCTL
+     A                                      SFLINZ
+     A N99                                  SFLEND
+     A            @PROGRAM                  SFLPGMQ(10)

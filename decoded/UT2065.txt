@@ -1,0 +1,390 @@
+     H OPTION(*SRCSTMT : *NODEBUGIO) CVTOPT(*NODATETIME) ALWNULL(*USRCTL)
+     H DFTACTGRP(*NO) ACTGRP(*CALLER) BNDDIR('QC2LE' : 'UTBIND' : 'UTCFG')
+      // -------------------------------------------------------------------------------------------
+      //
+      // Program  : UT2065 - Configuration - Compare variables between two scopes
+      // Project  : Infrastructure - Configurations
+      // Author.  : G.Neale                          Date. . : 11/27/2011
+      //
+      // Narrative: Presents a list of all defined variables and values for two scopes, and then
+      //            allows change of variable values
+      //
+      // -------------------------------------------------------------------------------------------
+      // Modification History:
+      //--------------------------------------------------------------------------------------------
+jse1  //   6/11/2012   J.Ellis   ChangeRequest: 3403 Sec/Audit Config Utility
+      //               Suppress display of password values.
+      //               Added audit trail output to show access to password type variables
+      //               one variable detail displays.
+      // -------------------------------------------------------------------------------------------
+     FUT2065D   CF   E             WORKSTN SFILE(WW_LIST_S : @R1)
+     F                                     INFDS(#WS)
+
+      *--------------------------------------------------------------------
+      * Define specific prototypes
+      *--------------------------------------------------------------------
+     D EntryParms      PR                  EXTPGM('UT2065')
+     D                                9B 0 const                                Scope ID 1
+     D                                9B 0 const                                Scope ID 2
+     D                                1A                                        End FKey
+
+     D EntryParms      PI
+     D   @ScopeID1                    9B 0 const                                Scope ID 1
+     D   @ScopeID2                    9B 0 const                                Scope ID 2
+     D   @EndFKey                     1A                                        End FKey
+
+     D MaintainOneRow...
+     D                 PR                  EXTPGM('UT2028')
+     D                                9B 0 const                                Scope ID
+     D                                9B 0 const                                Variable Def ID
+     D                                2S 0 const                                Option Number
+     D                                9B 0 const                                Value ID
+     D                                1A                                        End FKey
+
+     D  @WorkMsg       S            128A
+jse1 D  @SuppressFill  C                   Const(X'1C1C1C1C1C1C1C1C1C')
+jse1 D  @Desc          S             50A
+
+jse1 D @Audit_Key      ds
+jse1 D   @Server                     20
+jse1 D   @Scope                      20
+jse1 D   @Context                    20
+jse1 D   @Extent                     20
+jse1 D   @VarName                    50
+jse1 D   @Key_Value                 512
+
+      *--------------------------------------------------------------------
+      * Define database work structure
+      *--------------------------------------------------------------------
+     D @DB           E DS                  ExtName(UTCFGVAL) INZ
+
+      /Copy QCPYSRC,UTCFG_PR
+      /Copy QCPYSRC,UTCOM_WW
+
+      /FREE
+
+       //--------------------------------------------------------------------
+
+       Begsr $Load_Subfile;
+
+       // Retrieve the display data
+
+          EXEC SQL
+             DECLARE DISPLAY_CURSOR CURSOR FOR
+
+             SELECT   TRIM(CTX.CTX_NAME) || '.' ||
+                      TRIM(XTN.XTN_NAME) || '.' ||
+                      TRIM(VDF.VDF_NAME),
+                      TRIM(COALESCE(V1.VAL_VARVAL,' ')),
+                      TRIM(COALESCE(V1.VAL_VARVAL,' ')),
+                      TRIM(COALESCE(V2.VAL_VARVAL,' ')),
+                      TRIM(COALESCE(V2.VAL_VARVAL,' ')),
+                      VDF.VDF_ID,
+                      VDF.VTP_ID,
+                      COALESCE(V1.VAL_ID,0),
+                      COALESCE(V2.VAL_ID,0),
+jse1                  VDF.VDF_DESC
+             FROM     UTCFGCTX CTX
+                         JOIN
+                      UTCFGXTN XTN ON XTN.CTX_ID = CTX.CTX_ID
+                         JOIN
+                      UTCFGVDF VDF ON VDF.XTN_ID = XTN.XTN_ID
+                         LEFT JOIN
+                      UTCFGVAL V1  ON V1.VDF_ID = VDF.VDF_ID AND
+                                      V1.SCP_ID = :@ScopeID1
+                         LEFT JOIN
+                      UTCFGVAL V2  ON V2.VDF_ID = VDF.VDF_ID AND
+                                      V2.SCP_ID = :@ScopeID2
+             WHERE    CTX.CTX_IS_SRV = 0
+             ORDER BY 1;
+
+       // Open and process the data
+
+          EXEC SQL OPEN DISPLAY_CURSOR;
+
+          DOU SQLCOD <> *zero;
+
+             EXEC SQL FETCH DISPLAY_CURSOR INTO
+                :@VARIABLE, :L@VALUE, :L@VARVAL, :R@VALUE, :R@VARVAL,
+jse1            :@VDF_ID, :@VTP_ID, :L@VALID, :R@VALID, :@Desc;
+
+             If SQLCOD = *zero;
+
+                *IN70 = L@VarVal <> R@VarVal;
+
+jse1            If (%Scan('PASS': Uppercase(@Variable)) > *zero or
+jse1                %Scan('KEY': Uppercase(@Variable)) > *zero ) and
+jse1               L@Value <> *blanks  or
+jse1               (%Scan('PASS': Uppercase(@Desc)) > *zero or
+jse1                %Scan('KEY': Uppercase(@Desc)) > *zero ) and
+jse1               L@Value <> *blanks;
+jse1                L@Value = *blanks;
+jse1                L@Value = @SuppressFill;
+jse1            Endif;
+jse1            If (%Scan('PASS': Uppercase(@Variable)) > *zero or
+jse1                %Scan('KEY': Uppercase(@Variable)) > *zero ) and
+jse1               R@Value <> *blanks  or
+jse1               (%Scan('PASS': Uppercase(@Desc)) > *zero or
+jse1                %Scan('KEY': Uppercase(@Desc)) > *zero ) and
+jse1               R@Value <> *blanks;
+jse1                R@Value = *blanks;
+jse1                R@Value = @SuppressFill;
+jse1            Endif;
+
+                Exsr $Write_Subfile_Record;
+
+             Endif;
+          Enddo;
+
+          EXEC SQL CLOSE DISPLAY_CURSOR;
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+    
+       Begsr $Check_Function_Key_Requests;
+    
+          @ErrorMsg = 'Function key defined but not conditioned for';
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+    
+       Begsr $Process_One_Option;
+
+       // Condition function based upon option and authority
+
+          If @Option = 2 or
+             @Option = 5;
+             MaintainOneRow(@ScopeID1 : @Vdf_ID : @Option :
+                            L@Valid : @EndFKey);
+             #WS.FunctionKeyPressed = @EndFKey;
+             @ReloadSfl = *On;
+          ElseIf @Option = 32 or
+             @Option = 35;
+             MaintainOneRow(@ScopeID2 : @Vdf_ID : @Option - 30 :
+                            R@Valid : @EndFKey);
+             #WS.FunctionKeyPressed = @EndFKey;
+             @ReloadSfl = *On;
+          ElseIf @Option = 3 or
+             @Option = 33 or
+             @Option = 54;
+             Exsr $One_Option_Detail;
+          Else;
+             @ErrorMsg = 'Option ' + %Char(@Option) +
+                         ' is defined but not supported by code';
+          Endif;
+
+       Endsr;
+
+       //--------------------------------------------------------------------
+
+       Begsr $One_Option_Detail;
+
+       // load field values for display
+
+          @Ctx_Title = ConfigContextTitle(
+                          ConfigExtentParent(
+                          ConfigVarDefParent(@Vdf_ID)));
+          @Xtn_Title = ConfigExtentTitle(
+                          ConfigVarDefParent(@Vdf_ID));
+          @Vdf_Title = ConfigVarDefTitle(@Vdf_ID);
+          @Vtp_Title = ConfigVarTypeTitle(@Vtp_ID);
+
+          L@ScpTitle = %trim(ConfigFullScope(@ScopeID1)) + ' - ' +
+                       %trim(ConfigScopeDesc(@ScopeID1));
+
+          R@ScpTitle = %trim(ConfigFullScope(@ScopeID2)) + ' - ' +
+                       %trim(ConfigScopeDesc(@ScopeID2));
+
+jse1   // Check if password variable, and if value is present, write audit for access
+jse1   // if value is not blank
+jse1
+jse1       If (%Scan('PASS': Uppercase(@Vdf_Title)) > *zero or
+jse1           %Scan('KEY': Uppercase(@Vdf_Title)) > *zero ) and
+jse1          (L@VarVal <> *blanks or R@VarVal <> *blanks) ;
+jse1
+jse1           If L@ValID <> *zeros and L@VarVal <> *blanks;
+jse1
+jse1               Clear @Audit_Key;
+jse1
+jse1               Exec SQL
+jse1                   Select Vdf.Vdf_Name, Xtn.Xtn_Name, Ctx.Ctx_Name,
+jse1                          Scp.Scp_Name, Srv.Srv_Name
+jse1                   Into   :@VarName, :@Extent, :@Context, :@Scope, :@Server
+jse1                   From   UTCFGVAL Val
+jse1                          Join UTCFGVDF Vdf on Val.Vdf_ID = Vdf.Vdf_ID
+jse1                          Join UTCFGXTN Xtn on Vdf.Xtn_ID = Xtn.Xtn_ID
+jse1                          Join UTCFGCTX Ctx on Xtn.Ctx_ID = Ctx.Ctx_ID
+jse1                          Join UTCFGSCP Scp on Val.Scp_ID = Scp.Scp_ID
+jse1                          Join UTCFGSRV Srv on Scp.Srv_ID = Srv.Srv_ID
+jse1                   Where  Val.Val_ID = :L@ValID ;
+jse1
+jse1               @Key_Value = %Trim(@Server) + '/' + %Trim(@Scope) + '/' +
+jse1                            %Trim(@Context) + '/' + %Trim(@Extent) + '/' +
+jse1                            %Trim(@VarName);
+jse1
+jse1               Exec SQL
+jse1                   Insert Into UTCFGAUD
+jse1                   Values( Now(),
+jse1                           :#PS.ProgramName,
+jse1                           :#PS.CurrentUserProfile,
+jse1                           'READ',
+jse1                           'UTCFGVAL',
+jse1                           Trim(:@Key_Value),
+jse1                           'VAL_VARVAL',
+jse1                           Trim('User view of Password Variable value'),
+jse1                           Trim(:@Vdf_Title),
+jse1                           ' '   );
+jse1
+jse1           Endif;
+jse1
+jse1           If R@ValID <> *zeros and R@VarVal <> *blanks;
+jse1
+jse1               Clear @Audit_Key;
+jse1
+jse1               Exec SQL
+jse1                   Select Vdf.Vdf_Name, Xtn.Xtn_Name, Ctx.Ctx_Name,
+jse1                          Scp.Scp_Name, Srv.Srv_Name
+jse1                   Into   :@VarName, :@Extent, :@Context, :@Scope, :@Server
+jse1                   From   UTCFGVAL Val
+jse1                          Join UTCFGVDF Vdf on Val.Vdf_ID = Vdf.Vdf_ID
+jse1                          Join UTCFGXTN Xtn on Vdf.Xtn_ID = Xtn.Xtn_ID
+jse1                          Join UTCFGCTX Ctx on Xtn.Ctx_ID = Ctx.Ctx_ID
+jse1                          Join UTCFGSCP Scp on Val.Scp_ID = Scp.Scp_ID
+jse1                          Join UTCFGSRV Srv on Scp.Srv_ID = Srv.Srv_ID
+jse1                   Where  Val.Val_ID = :R@ValID ;
+jse1
+jse1               @Key_Value = %Trim(@Server) + '/' + %Trim(@Scope) + '/' +
+jse1                            %Trim(@Context) + '/' + %Trim(@Extent) + '/' +
+jse1                            %Trim(@VarName);
+jse1
+jse1               Exec SQL
+jse1                   Insert Into UTCFGAUD
+jse1                   Values( Now(),
+jse1                           :#PS.ProgramName,
+jse1                           :#PS.CurrentUserProfile,
+jse1                           'READ',
+jse1                           'UTCFGVAL',
+jse1                           Trim(:@Key_Value),
+jse1                           'VAL_VARVAL',
+jse1                           Trim('User view of Password Variable value'),
+jse1                           Trim(:@Vdf_Title),
+jse1                           ' '   );
+jse1
+jse1           Endif;
+jse1
+jse1       Endif;
+
+       // determine if values are different
+
+          *IN70 = L@VarVal <> R@VarVal;
+
+       // load option specific message value
+
+          If @Option = 54;
+             @WorkMsg = '* Press "ENTER" to continue.';
+          ElseIf not *IN70;
+             @WorkMsg = '* Copy function not supported - values are ' +
+                        'the same. * Press "ENTER" to continue.';
+          ElseIf @Option = 3;
+             @WorkMsg = '* Press "ENTER" to copy ' +
+                         %trim(ConfigFullScope(@ScopeID1)) + ' value to ' +
+                         %trim(ConfigFullScope(@ScopeID2));
+          ElseIf @Option = 33;
+             @WorkMsg = '* Press "ENTER" to copy ' +
+                         %trim(ConfigFullScope(@ScopeID2)) + ' value to ' +
+                         %trim(ConfigFullScope(@ScopeID1));
+          Endif;
+
+          EvalR @WorkMsg = %trim(@WorkMsg);
+          %subst(@WorkMsg : 1 : 1) = x'41';
+
+          SendSubfileMessage(@Program : %trimr(@WorkMsg));
+          Clear @WorkMsg;
+
+       // Process detail screen
+
+          Write Msg_Ctl;
+          Exfmt OneRow_D;
+          ClearSubfileMessages(@Program);
+
+       // Check action required
+
+          If #WS.FunctionKeyPressed = #Cancel;
+             #WS.FunctionKeyPressed = #Enter;
+          ElseIf #WS.FunctionKeyPressed <> #Exit;
+             If @Option = 3 and *IN70 or
+                @Option = 33 and *IN70;
+                Exsr $Update_Data;
+             Endif;
+          Endif;
+
+       Endsr;
+
+       //--------------------------------------------------------------------
+
+       Begsr $Update_Data;
+
+       // Establish database values prior to executing update
+
+          Vdf_ID = @Vdf_ID;
+          If @Option = 3;
+             Scp_ID = @ScopeID2;
+             Val_ID = R@ValID;
+             Val_VarVal = L@VarVal;
+          Elseif @Option = 33;
+             Scp_ID = @ScopeID1;
+             Val_ID = L@ValID;
+             Val_VarVal = R@VarVal;
+          Endif;
+
+       // Execute method appropriate for action
+
+           If Val_ID = *zero and Val_VarVal <> *blank;
+               ConfigVariableInsert(@DB);
+           ElseIf Val_ID <> *zero and Val_VarVal <> *blank;
+               ConfigVariableUpdate(@DB);
+           ElseIf Val_ID <> *zero and Val_VarVal = *blank;
+               ConfigVariableDelete(@DB);
+           Endif;
+
+           @ReloadSfl = *On;
+
+       Endsr;
+
+       //--------------------------------------------------------------------
+
+       Begsr $Data_Initialization;
+
+       // Load header values
+
+          L@Column = CenterString(%len(L@Column) :
+                        '(L) ' + %trim(ConfigFullScope(@ScopeID1)) + ' Values');
+          R@Column = CenterString(%len(R@Column) :
+                        '(R) ' + %trim(ConfigFullScope(@ScopeID2)) + ' Values');
+
+       // Set tables and rights required
+
+           @TableNames(1)  = 'UTCFGVAL';
+           @TableRights(1) = 'CRUD';
+
+       // Set valid options
+
+           @AvlOpt(2)  = '2=Change (L)';
+           @AvlOpt(3)  = '3=Copy (L) to (R)';
+           @AvlOpt(5)  = '5=Display (L)';
+           @AvlOpt(32) = '32=Change (R)';
+           @AvlOpt(33) = '33=Copy (R) to (L)';
+           @AvlOpt(35) = '35=Display (R)';
+           @AvlOpt(54) = '54=Compare';
+
+       // Set valid function keys
+
+           @AvlFnc(3)  = 'F3=Exit';
+           @AvlFnc(5)  = 'F5=Refresh';
+           @AvlFnc(12) = 'F12=Cancel';
+
+       Endsr;
+    
+       //--------------------------------------------------------------------

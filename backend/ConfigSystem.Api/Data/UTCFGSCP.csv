@@ -1,0 +1,12 @@
+﻿CONFIGURATION_SCOPE_IDENTITY,CONFIGURATION_SERVER_IDENTITY,CONFIGURATION_SCOPE_RESOLUTION_METHOD_IDENTITY,CONFIGURATION_SCOPE_NAME,CONFIGURATION_SCOPE_DESCRIPTION,CONFIGURATION_SCOPE_IS_SERVER_FLAG,CONFIGURATION_SCOPE_MATCH_VALUE,CONFIGURATION_SCOPE_INFORMATION
+"1","2","2","Global              ","Global Values - Distinct for DEV                  ","1","DEV",""
+"21","2","3","DATUCOMN            ","PROD BUILD                                        ","0","DATUCOMN",""
+"10","2","3","DATICOMN            ","Programmer Testing                                ","0","DATICOMN",""
+"11","2","3","DATNCOMN            ","Loan Operations Testing                           ","0","DATNCOMN",""
+"12","2","3","DATOCOMN            ","LoanIQ Billing & Statements Testing               ","0","DATOCOMN",""
+"13","2","3","DATXCOMN            ","Merger Testing                                    ","0","DATXCOMN",""
+"19","2","3","U4142CES            ","Craig E Scott Testing                             ","0","U4142CES",""
+"20","2","3","DATMCOMN            ","Programmer Testing                                ","0","DATMCOMN",""
+"22","2","3","TURNOVER            ","Turnover                                          ","0","SOFTTURN",""
+"23","2","3","DATCOMN             ","Production Level of DATCOMN for DEV only Testing  ","0","DATCOMN",""
+"27","2","3","DATVCOMN            ","Integration Testing                               ","0","DATVCOMN",""

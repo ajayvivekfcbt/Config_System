@@ -1,0 +1,8 @@
+﻿CONFIGURATION_VARIABLE_TYPE_IDENTITY,CONFIGURATION_VARIABLE_TYPE_NAME,CONFIGURATION_VARIABLE_TYPE_DESCRIPTION,CONFIGURATION_VARIABLE_TYPE_VALIDATION_PROCEDURE,CONFIGURATION_VARIABLE_TYPE_INFORMATION
+"1","*STRING             ","String (alphanumeric)                             ","","This variable type will accept any value that can be populated in a character field."
+"2","*NUMERIC            ","Numeric Data                                      ","",""
+"3","*MONEY              ","Currency amount with dollars & Cents              ","",""
+"4","*YYMMDD             ","Date in YMD without separators                    ","",""
+"5","*HHMM               ","Time in hours & minutes without separators        ","",""
+"6","*IPV4               ","IP Address - V4                                   ","","This is standard data validation for IP addresses using version four naming convention.  This will tell you whether the ip address is well formed - not whether or not the actual ip address is defined and functional."
+"7","*INTEGER            ","Integer (ID) Value                                ","",""

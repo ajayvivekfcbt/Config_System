@@ -1,0 +1,41 @@
+     A*%%TS  SD  20120404  095336  U4142GJN    REL-V6R1M0  5761-WDS
+     A*%%EC
+     A                                      DSPSIZ(27 132 *DS4)
+     A                                      CF03
+     A                                      CF05
+     A                                      CF12
+     A          R MAINT_MENU
+     A*%%TS  SD  20120404  095336  U4142GJN    REL-V6R1M0  5761-WDS
+     A                                  1  2DATE
+     A                                      EDTCDE(Y)
+     A                                  1 12TIME
+     A                                  1 22USER
+     A                                  1 51'Configuration - Maintenance Menu'
+     A                                      DSPATR(HI)
+     A                                  1102SYSNAME
+     A            @PROGRAM      10A  O  1111
+     A                                  1122'MAINT_MENU'
+     A                                  3  2'Select one of the following:'
+     A                                      COLOR(BLU)
+     A                                  5  4'1.  Work with Variable Types'
+     A                                  6  4'2.  Work with Scope Resolution Met-
+     A                                      hods'
+     A                                  7  4'3.  Work with Server/Scope Definit-
+     A                                      ions'
+     A                                  8  4'4.  Work with Context Definitions'
+     A                                 10  3'11.  Work with Configuration Varia-
+     A                                      ble Values - All Scopes'
+     A                                 11  3'12.  Work with Configuration Varia-
+     A                                      ble Values - Current Scope'
+     A                                 13  3'21.  Conform Configuration across -
+     A                                      Servers'
+     A                                 15  3'81.  Test Consumption Procedures'
+jse1 A                                 19  3'90.  Maintenance Audit Report   '
+     A                                 25  2'Option:'
+     A            OPTION         2Y 0B 25 11DSPATR(HI)
+     A                                      EDTCDE(Z)
+jse1 A                                      VALUES(0 1 2 3 4 11 12 21 81 90)
+     A                                 27  2'F3=Exit'
+     A                                      COLOR(BLU)
+     A                                 27 12'F12=Cancel'
+     A                                      COLOR(BLU)

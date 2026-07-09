@@ -1,0 +1,10 @@
+# Build artifacts
+[Bb]in/
+[Oo]bj/
+dist/
+node_modules/
+
+# Local database
+*.db
+*.db-shm
+*.db-wal

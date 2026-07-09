@@ -1,0 +1,96 @@
+     A*%%TS  SD  20110228  132037  U4142GJN    REL-V6R1M0  5761-WDS
+     A*%%EC
+     A                                      DSPSIZ(27 132 *DS4)
+     A                                      CF01 CF02 CF03 CF04 CF05 CF06
+     A                                      CF07 CF08 CF09 CF10 CF11 CF12
+     A                                      CF13 CF14 CF15 CF16 CF17 CF18
+     A                                      CF19 CF20 CF21 CF22 CF23 CF24
+     A                                      HELP PRINT CLEAR
+     A                                      PAGEUP PAGEDOWN
+     A          R ONEROW_D
+     A*%%TS  SD  20110228  131628  U4142GJN    REL-V6R1M0  5761-WDS
+     A                                      OVERLAY
+     A                                  1  2DATE
+     A                                      EDTCDE(Y)
+     A                                  1 11TIME
+     A                                  1 20USER
+     A                                  1 56'Configuration - Scope'
+     A                                      DSPATR(HI)
+     A                                  1102SYSNAME
+     A            @PROGRAM      10A  O  1111
+     A                                  1122'ONEROW_D'
+     A                                  3  2'Server Name  . . . . . . . :'
+     A            @SRV_TITLE    80A  O  3 32
+     A                                  5  2'Scope Name . . . . . . . . :'
+     A            SCP_NAME      20A  O  5 32
+     A                                  6  2'Scope Description  . . . . :'
+     A            SCP_DESC      50A  O  6 32
+     A                                  8  2'Scope is Server Level  . . :'
+     A            @YN_IS_SRV     3A  O  8 32
+     A                                  8 44'(YES/NO)'
+     A                                  9  2'Scope Resolution Method  . :'
+     A            SRM_NAME      20A  O  9 32
+     A            SRM_DESC      50A  O  9 54
+     A                                 10  2'Resolution Match Value . . :'
+     A            @SCPMATCH    100A  O 10 32
+     A                                 12  2'Scope Info Text  . . . . . :'
+     A            @INFO       1300A  B 12 32CHGINPDFT
+     A                                      CNTFLD(100)
+     A                                      DSPATR(PR)
+     A            @FUNCTIONS    88   O 26  2COLOR(BLU)
+     A            @BOP_TEXT     40A  O 26 92DSPATR(HI)
+     A          R ONEROW_M
+     A*%%TS  SD  20110228  131628  U4142GJN    REL-V6R1M0  5761-WDS
+     A                                      RTNCSRLOC(&@PROMPTREC &@PROMPTFLD)
+     A                                      OVERLAY
+     A                                      SETOF(95)
+     A                                      CHANGE(95)
+     A            @PROMPTREC    10A  H
+     A            @PROMPTFLD    10A  H
+     A                                  1  2DATE
+     A                                      EDTCDE(Y)
+     A                                  1 11TIME
+     A                                  1 20USER
+     A                                  1 56'Configuration - Scope'
+     A                                      DSPATR(HI)
+     A                                  1102SYSNAME
+     A            @PROGRAM      10A  O  1111
+     A                                  1122'ONEROW_M '
+     A                                  3  2'Server Name  . . . . . . . :'
+     A            @SRV_TITLE    80A  O  3 32
+     A                                  5  2'Scope Name . . . . . . . . :'
+     A            SCP_NAME      20A  B  5 32CHECK(LC)
+     A                                      DSPATR(HI)
+     A                                  6  2'Scope Description  . . . . :'
+     A            SCP_DESC      50A  B  6 32CHECK(LC)
+     A                                      DSPATR(HI)
+     A                                  8  2'Scope is Server Level  . . :'
+     A            @YN_IS_SRV     3A  B  8 32DSPATR(HI)
+     A                                  8 44'(YES/NO)'
+     A                                  9  2'Scope Resolution Method  . :'
+     A            SRM_NAME      20A  B  9 32CHECK(LC)
+     A                                      DSPATR(HI)
+     A            SRM_DESC      50A  O  9 54
+     A                                 10  2'Resolution Match Value . . :'
+     A            @SCPMATCH    100A  B 10 32CHECK(LC)
+     A                                      DSPATR(HI)
+     A                                 12  2'Scope Info Text  . . . . . :'
+     A            @INFO       1300A  B 12 32CNTFLD(100)
+     A                                      CHECK(LC)
+     A                                      DSPATR(HI)
+     A            @FUNCTIONS    88   O 26  2COLOR(BLU)
+     A            @BOP_TEXT     40A  O 26 92DSPATR(HI)
+     A          R MSG_SFL                   SFL
+     A                                      SFLMSGRCD(27)
+     A            @MSGKEY                   SFLMSGKEY
+     A            @PROGRAM                  SFLPGMQ
+     A
+     A          R MSG_CTL                   SFLCTL(MSG_SFL)
+     A                                      SFLSIZ(0010)
+     A                                      SFLPAG(0001)
+     A                                      OVERLAY
+     A                                      SFLDSP
+     A                                      SFLDSPCTL
+     A                                      SFLINZ
+     A N99                                  SFLEND
+     A            @PROGRAM                  SFLPGMQ(10)

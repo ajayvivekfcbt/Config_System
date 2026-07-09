@@ -1,0 +1,49 @@
+     A*%%TS  SD  20110225  093429  U4142GJN    REL-V6R1M0  5761-WDS
+     A*%%EC
+     A                                      DSPSIZ(27 132 *DS4)
+     A                                      CF03
+     A                                      CF12
+     A          R DUMMY
+     A                                      ASSUME
+     A                                  1  2' '
+     A          R WINDOW_S                  SFL
+     A*%%TS  SD  20110225  093429  U4142GJN    REL-V6R1M0  5761-WDS
+     A            @ID            9S 0H
+     A            @INFO       2048A  H
+     A            @OPTION        1Y 0B  3  1DSPATR(HI)
+     A                                      EDTCDE(Z)
+     A            @VALUE        50A  O  3  3
+     A            @DESC         50A  O  3 54
+     A          R WINDOW_C                  SFLCTL(WINDOW_S)
+     A*%%TS  SD  20110225  093429  U4142GJN    REL-V6R1M0  5761-WDS
+     A                                      SFLSIZ(1999)
+     A                                      SFLPAG(0010)
+     A                                      WINDOW(7 13 14 103 *NOMSGLIN)
+     A                                      KEEP
+     A  41                                  SFLDSP
+     A  40                                  SFLDSPCTL
+     A N40                                  SFLCLR
+     A  41                                  SFLEND(*MORE)
+     A                                      WDWTITLE((*TEXT 'Variable Valid Val-
+     A                                      ue Select') (*COLOR WHT) *CENTER)
+     A                                  2  1'X'
+     A                                      DSPATR(HI)
+     A                                      DSPATR(UL)
+     A                                  2  3'               Variable Valid Valu-
+     A                                      es              '
+     A                                      DSPATR(UL)
+     A                                      DSPATR(HI)
+     A                                  2 54'                Value Description -
+     A                                                      '
+     A                                      DSPATR(UL)
+     A                                      DSPATR(HI)
+     A          R WINDOW_O
+     A*%%TS  SD  20101203  094109  U4142GJN    REL-V6R1M0  5761-WDS
+     A                                      WINDOW(WINDOW_C)
+     A                                      OVERLAY
+     A                                 14  1'Option: 1=Select  8=Info'
+     A                                      COLOR(BLU)
+     A                                 14 53'F3=Exit'
+     A                                      COLOR(BLU)
+     A                                 14 63'F12=Cancel'
+     A                                      COLOR(BLU)

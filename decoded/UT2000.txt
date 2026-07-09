@@ -1,0 +1,124 @@
+     H OPTION(*SRCSTMT : *NODEBUGIO) CVTOPT(*NODATETIME) ALWNULL(*USRCTL)
+     H DFTACTGRP(*NO) ACTGRP(*CALLER) BNDDIR('QC2LE' : 'UTBIND')
+      // -------------------------------------------------------------------------------------------
+      //
+      // Program  : UT2000 - Configuration Menu
+      // Project  : Infrastructure
+      // Author.  : Geoffrey Neale                   Date. . : 12/10/2010
+      //
+      // Narrative: This program is the primary menu for the configuration & maintenance of the
+      //            Utility Configuration System
+      //
+      // -------------------------------------------------------------------------------------------
+      // Modification History:
+      //--------------------------------------------------------------------------------------------
+gn1   // 11/29/2011 - G.Neale - Changed 21 to 81 (Test consumption)
+      //                      - Added new option 21 - Conform configuration across servers
+gn2   //  4/04/2012 - G.Neale - Added new option 12 - Current Scope Variables
+      //                      - Added new option 21 - Conform configuration across servers
+jse1  //  9/10/2012 - J.Ellis   CR: 3507  Maintenance Audit Reporting
+      //              Added new option 90 - Maintenance Audit Report (CR2090)
+      // -------------------------------------------------------------------------------------------
+     FUT2000D   CF   E             WORKSTN INFDS(#WS)
+
+      /Copy QCPYSRC,UTBIND_PR
+      /Copy QCPYSRC,PGSDS
+      /Copy QCPYSRC,INFDS_WS
+      /Copy QCPYSRC,FUNC_KEYS
+
+      *--------------------------------------------------------------------
+      * Define prototypes and procedure interfaces
+      *--------------------------------------------------------------------
+     D WorkWithVariableTypes...
+     D                 PR                  EXTPGM('UT2010')
+
+     D WorkWithMethods...
+     D                 PR                  EXTPGM('UT2011')
+
+     D WorkWithServers...
+     D                 PR                  EXTPGM('UT2012')
+
+     D WorkWithContexts...
+     D                 PR                  EXTPGM('UT2014')
+
+     D WorkWithVariableValues...
+     D                 PR                  EXTPGM('UT2052')
+
+gn2  D WorkWithCurrentVariableValues...
+gn2  D                 PR                  EXTPGM('UT2050')
+
+     D TestConsumptionProcedures...
+     D                 PR                  EXTPGM('UT0029')
+
+gn1  D ConformConfiguration...
+gn1  D                 PR                  EXTPGM('UT2072')
+
+jse1 D MaintenanceAuditReporting...
+jse1 D                 PR                  EXTPGM('UT2090')
+
+     *********************************************************************
+     **        M A I N L I N E    C O N T R O L    S E C T I O N
+     **********************************************************************
+      /FREE
+
+       // Initialize program name
+
+       @Program = #PS.ProgramName;
+
+       // Primary loop of screen
+
+       Dou #WS.FunctionKeyPressed = #Exit or
+           #WS.FunctionKeyPressed = #Cancel;
+
+       // Execute screen
+
+           Exfmt Maint_Menu;
+
+       // Check for exit requests
+
+           If  #WS.FunctionKeyPressed = #Exit or
+               #WS.FunctionKeyPressed = #Cancel;
+               Exsr $Abort;
+           Endif;
+
+       // Check for options
+
+           If Option = 1;
+               WorkWithVariableTypes();
+           Elseif Option = 2;
+               WorkWithMethods();
+           Elseif Option = 3;
+               WorkWithServers();
+           Elseif Option = 4;
+               WorkWithContexts();
+           Elseif Option = 11;
+               WorkWithVariableValues();
+gn2        Elseif Option = 12;
+gn2            WorkWithCurrentVariableValues();
+           Elseif Option = 21;
+gn1            ConformConfiguration();
+gn1        Elseif Option = 81;
+               TestConsumptionProcedures();
+jse1       Elseif Option = 90;
+jse1           MaintenanceAuditReporting();
+           Endif;
+
+           Clear Option;
+
+       Enddo;
+
+       // End of program
+
+       Exsr $Abort;
+
+       //--------------------------------------------------------------------
+
+       Begsr $Abort;
+
+           *INLR = *On;
+           Return;
+
+       Endsr;
+
+       //--------------------------------------------------------------------
+      /END-FREE

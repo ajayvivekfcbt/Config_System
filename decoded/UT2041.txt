@@ -1,0 +1,132 @@
+     H OPTION(*SRCSTMT : *NODEBUGIO) CVTOPT(*NODATETIME) ALWNULL(*USRCTL)
+     H DFTACTGRP(*NO) ACTGRP(*CALLER) BNDDIR('QC2LE' : 'UTBIND' : 'UTCFG')
+      // -------------------------------------------------------------------------------------------
+      //
+      // Program  : UT2041 - Scope Resolution Method Where Used List
+      // Project  : Infrastructure - Configuration
+      // Author.  : G.Neale                          Date. . : 02/24/2011
+      //
+      // Narrative: Provide list of UTCFGSCP matching input Scope Resolution method ID
+      //
+      // -------------------------------------------------------------------------------------------
+      // Modification History:
+      //--------------------------------------------------------------------------------------------
+      //
+      // -------------------------------------------------------------------------------------------
+     FUT2041D   CF   E             WORKSTN SFILE(WW_LIST_S : @R1)
+     F                                     INFDS(#WS)
+
+      *--------------------------------------------------------------------
+      * Define specific prototypes
+      *--------------------------------------------------------------------
+     D EntryParms      PR                  EXTPGM('UT2041')
+     D                                9B 0                                      Input ID
+     D                                1A                                        Return Function Key
+
+     D EntryParms      PI
+     D  @EntryID                      9B 0                                      Input ID
+     D  @EndFKey                      1A                                        Return Function Key
+
+     D MaintainOneRow...
+     D                 PR                  EXTPGM('UT2023')
+     D                                9B 0 const                                Parent ID
+     D                                2S 0 const                                Option Number
+     D                                9B 0 const                                Row ID
+     D                                1A                                        End FKey
+
+     D**@EndFKey       S              1A                                        Return Function Key
+
+      /Copy QCPYSRC,UTCFG_PR
+      /Copy QCPYSRC,UTCOM_WW
+
+      /FREE
+
+       //--------------------------------------------------------------------
+
+       Begsr $Load_Subfile;
+
+       // Retrieve the data for display
+
+           EXEC SQL
+               DECLARE LIST_CURSOR CURSOR FOR
+               SELECT   SCP.SRV_ID, SCP.SCP_ID, SRV.SRV_NAME,
+                        SCP.SCP_NAME, SCP.SCP_DESC,
+                        BIT_YESNO(SCP_IS_SRV)
+               FROM     UTCFGSCP SCP
+                            JOIN
+                        UTCFGSRV SRV ON SRV.SRV_ID = SCP.SRV_ID
+               WHERE    SCP.SRM_ID = :@EntryID
+               ORDER BY UPPER(SRV.SRV_NAME), UPPER(SCP.SCP_NAME);
+
+           EXEC SQL OPEN LIST_CURSOR;
+
+           DOU SQLCOD <> *zero;
+
+               EXEC SQL
+                   FETCH LIST_CURSOR
+                   INTO  :@PARENTID, :@ID, :@SERVER, :@NAME, :@DESC, :@SRV_YN;
+
+               If SQLCOD = *zero;
+                   Exsr $Write_Subfile_Record;
+               Endif;
+           Enddo;
+
+           EXEC SQL CLOSE LIST_CURSOR;
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+    
+       Begsr $Check_Function_Key_Requests;
+
+         @ErrorMsg = 'Function key defined but not conditioned for';
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+    
+       Begsr $Process_One_Option;
+
+       // Condition function based upon option and authority
+
+           If @Option = 8;
+               InfoWindow(ConfigScopeTitle(@ID) : ConfigScopeInfo(@ID));
+           Elseif @Option = 2 or
+               @Option = 5;
+               MaintainOneRow(@ParentID : @Option : @ID : @EndFKey);
+               #WS.FunctionKeyPressed = @EndFKey;
+           Else;
+               @ErrorMsg = 'Option ' + %Char(@Option) +
+                           ' is defined but not supported by code';
+           Endif;
+
+       Endsr;
+
+       //--------------------------------------------------------------------
+
+       Begsr $Data_Initialization;
+
+       // Set header values
+
+           @Srm_Title = ConfigMethodTitle(@EntryID);
+
+       // Set tables and rights required
+
+           @TableNames(1)  = 'UTCFGSCP';
+           @TableRights(1) = 'CRUD';
+
+       // Set valid options
+
+           @AvlOpt(2)  = '2=Change';
+           @AvlOpt(5)  = '5=Display';
+           @AvlOpt(8)  = '8=Info';
+
+       // Set valid function keys
+
+           @AvlFnc(3)  = 'F3=Exit';
+           @AvlFnc(5)  = 'F5=Refresh';
+           @AvlFnc(12) = 'F12=Cancel';
+
+       Endsr;
+    
+       //--------------------------------------------------------------------

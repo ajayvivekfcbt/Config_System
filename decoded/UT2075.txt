@@ -1,0 +1,363 @@
+     H OPTION(*SRCSTMT : *NODEBUGIO) CVTOPT(*NODATETIME) ALWNULL(*USRCTL)
+     H DFTACTGRP(*NO) ACTGRP(*CALLER) BNDDIR('QC2LE' : 'UTBIND' : 'UTCFG')
+      // -------------------------------------------------------------------------------------------
+      //
+      // Program  : UT2075 - Conform Configuration Extent Definitions
+      // Project  : Infrastructure - Configuration
+      // Author.  : G.Neale                          Date. . : 11/28/2011
+      //
+      // Narrative: Provide ability to conform values across servers
+      //
+      // -------------------------------------------------------------------------------------------
+      // Modification History:
+      //--------------------------------------------------------------------------------------------
+      //
+      // -------------------------------------------------------------------------------------------
+     FUT2075D   CF   E             WORKSTN SFILE(WW_LIST_S : @R1)
+     F                                     INFDS(#WS)
+
+      *--------------------------------------------------------------------
+      * Define entry prototype and procedure interface
+      *--------------------------------------------------------------------
+     D EntryParms      PR                  EXTPGM('UT2075')
+     D                               20A                                        Remote Server
+     D                                1A                                        End FKey
+
+     D EntryParms      PI
+     D   @Remote                     20A                                        Remote Server
+     D   @EndFKey                     1A                                        End FKey
+
+      *--------------------------------------------------------------------
+      * Define specific prototypes
+      *--------------------------------------------------------------------
+     D StageRemoteCTX...
+     D                 PR                  EXTPGM('UT2084')
+     D                               20A                                        Remote Server
+
+     D StageRemoteXtn...
+     D                 PR                  EXTPGM('UT2085')
+     D                               20A                                        Remote Server
+
+      *--------------------------------------------------------------------
+      * Define database work structure
+      *--------------------------------------------------------------------
+     D @DB           E DS                  ExtName(UTCFGXTN) INZ
+
+      *--------------------------------------------------------------------
+      * Define specific variables
+      *--------------------------------------------------------------------
+     D  @StageError    S            512A   Varying                              Stage build error
+     D  L@Len          S             10I 0
+     D  R@Len          S             10I 0
+     D  @WorkMsg       S            128A
+     D  @Delete        S               N                                        Implied delete flag
+     D  @CtxSort       S             20A
+     D  @XtnSort       S             20A
+     D  @NameWork      S             41A
+     D  @Local         S             20A                                        Local Server
+
+      /Copy QCPYSRC,UTCFG_PR
+      /Copy QCPYSRC,UTCOM_WW
+
+      /FREE
+
+       //--------------------------------------------------------------------
+
+       Begsr $Load_Subfile;
+
+       // Determine maximum code length - local
+
+          EXEC SQL
+             SELECT   MAX(LENGTH(
+                      TRIM(C.CTX_NAME) || '.' || TRIM(X.XTN_NAME)))
+             INTO     :L@LEN
+             FROM     UTCFGCTX C
+                         JOIN
+                      UTCFGXTN X ON X.CTX_ID = C.CTX_ID;
+
+       // Determine maximum code length - remote
+
+          EXEC SQL
+             SELECT   MAX(LENGTH(
+                      TRIM(C.CTX_NAME) || '.' || TRIM(X.XTN_NAME)))
+             INTO     :R@LEN
+             FROM     TEMP_CTX C
+                         JOIN
+                      TEMP_XTN X ON X.CTX_ID = C.CTX_ID;
+
+       // Retrieve the data for display
+
+          EXEC SQL DECLARE LIST_CURSOR CURSOR FOR
+             WITH
+             LOCAL AS (
+                SELECT   UPPER(LC.CTX_NAME) AS LC_CTX_UPPER,
+                         LC.CTX_NAME        AS LC_CTX_NAME,
+                         LC.CTX_ID          AS LC_CTX_ID,
+                         LC.CTX_DESC        AS LC_CTX_DESC,
+                         LX.XTN_ID          AS LX_XTN_ID,
+                         UPPER(LX.XTN_NAME) AS LX_XTN_UPPER,
+                         LX.XTN_NAME        AS LX_XTN_NAME,
+                         LX.XTN_DESC        AS LX_XTN_DESC,
+                         LX.XTN_INFO        AS LX_XTN_INFO
+                FROM     UTCFGCTX LC
+                            JOIN
+                         UTCFGXTN LX ON LX.CTX_ID = LC.CTX_ID),
+             REMOTE AS (
+                SELECT   UPPER(RC.CTX_NAME) AS RC_CTX_UPPER,
+                         RC.CTX_NAME        AS RC_CTX_NAME,
+                         RC.CTX_ID          AS RC_CTX_ID,
+                         RC.CTX_DESC        AS RC_CTX_DESC,
+                         RX.XTN_ID          AS RX_XTN_ID,
+                         UPPER(RX.XTN_NAME) AS RX_XTN_UPPER,
+                         RX.XTN_NAME        AS RX_XTN_NAME,
+                         RX.XTN_DESC        AS RX_XTN_DESC,
+                         RX.XTN_INFO        AS RX_XTN_INFO
+                FROM     TEMP_CTX RC
+                            JOIN
+                         TEMP_XTN RX ON RX.CTX_ID = RC.CTX_ID)
+
+             SELECT   CASE WHEN LC_CTX_UPPER IS NULL                            // CTX SORT
+                           THEN RC_CTX_UPPER
+                           ELSE LC_CTX_UPPER END,
+                      CASE WHEN LX_XTN_UPPER IS NULL                            // XTN_SORT
+                           THEN RX_XTN_UPPER
+                           ELSE LX_XTN_UPPER END,
+                      COALESCE(LC_CTX_ID,0),                                    // L@CTXID
+                      COALESCE(LC_CTX_NAME,' '),                                // L@CTXNAME
+                      COALESCE(LC_CTX_DESC,' '),                                // L@CTXDESC
+                      COALESCE(LX_XTN_ID,0),                                    // L@ID
+                      COALESCE(LX_XTN_NAME,' '),                                // L@NAME
+                      COALESCE(LX_XTN_DESC,' '),                                // L@DESC
+                      COALESCE(LX_XTN_INFO,' '),                                // L@INFO
+                      COALESCE(RC_CTX_ID,0),                                    // R@CTXID
+                      COALESCE(RC_CTX_NAME,' '),                                // R@CTXNAME
+                      COALESCE(RC_CTX_DESC,' '),                                // R@CTXDESC
+                      COALESCE(RX_XTN_ID,0),                                    // R@ID
+                      COALESCE(RX_XTN_NAME,' '),                                // R@NAME
+                      COALESCE(RX_XTN_DESC,' '),                                // R@DESC
+                      COALESCE(RX_XTN_INFO,' ')                                 // R@INFO
+             FROM     LOCAL L
+                         FULL JOIN
+                      REMOTE R ON RC_CTX_UPPER = LC_CTX_UPPER AND
+                                  RX_XTN_UPPER = LX_XTN_UPPER
+             WHERE    COALESCE(RC_CTX_UPPER,' ') =
+                      COALESCE(LC_CTX_UPPER,' ')
+             ORDER BY 1,2;
+
+          EXEC SQL OPEN LIST_CURSOR;
+
+          DOU SQLCOD <> *zero;
+
+             EXEC SQL
+                FETCH LIST_CURSOR INTO
+                   :@CTXSORT, :@XTNSORT,
+                   :L@CTXID, :L@CTXNAME, :L@CTXDESC,
+                   :L@ID, :L@NAME, :L@DESC, :L@INFO,
+                   :R@CTXID, :R@CTXNAME, :R@CTXDESC,
+                   :R@ID, :R@NAME, :R@DESC, :R@INFO;
+
+             If SQLCOD = *zero;
+
+                If L@Name <> *blank;
+                   @NameWork = %trim(L@CtxName) + '.' + %trim(L@Name);
+                   L@Value = %subst(@NameWork : 1 : L@LEN) +
+                                    ' - ' + %trim(L@DESC);
+                Else;
+                   L@Value = x'28' + 'Row does not exist';
+                Endif;
+
+                If R@Name <> *blank;
+                   @NameWork = %trim(R@CtxName) + '.' + %trim(R@Name);
+                   R@Value = %subst(@NameWork : 1 : R@LEN) +
+                                    ' - ' + %trim(R@DESC);
+                Else;
+                   R@Value = x'28' + 'Row does not exist';
+                Endif;
+
+                If L@ID = *zero or
+                   R@ID = *zero or
+                   L@Name <> R@Name or
+                   L@Desc <> R@Desc or
+                   L@Info <> R@Info;
+                   *IN70 = *On;
+                Else;
+                   *IN70 = *Off;
+                Endif;
+
+                Exsr $Write_Subfile_Record;
+             Endif;
+          Enddo;
+
+          EXEC SQL CLOSE LIST_CURSOR;
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+    
+       Begsr $Check_Function_Key_Requests;
+    
+       // No functions supported
+
+          @ErrorMsg = 'Function key defined but not conditioned for';
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+    
+       Begsr $Process_One_Option;
+
+       // Condition function based upon option and authority
+
+          If @Option = 54 or
+             @Option = 33;
+             Exsr $One_Option_Detail;
+          Else;
+             @ErrorMsg = 'Option ' + %Char(@Option) +
+                         ' is defined but not supported by code';
+          Endif;
+
+       Endsr;
+
+       //--------------------------------------------------------------------
+
+       Begsr $One_Option_Detail;
+
+       // Determine if implied delete (exists on local but not on remote)
+
+          If L@ID <> *zero and
+             R@ID = *zero;
+             @Delete = *On;
+          Else;
+             @Delete = *Off;
+          Endif;
+
+       // If no error message to display, load option specific value
+
+          If @Option = 54;
+             @WorkMsg = '* Press "ENTER" to continue.';
+          ElseIf @Option = 33 and not @Delete;
+             @WorkMsg = '* Press "ENTER" to copy ' +
+                         %trim(@Remote) + ' values to ' + %trim(@Local);
+          ElseIf @Option = 33 and @Delete;
+             @WorkMsg = 'Row does not exist on remote server - ' +
+                        'implied delete function is not supported.';
+          Endif;
+
+          If not @Delete;
+             EvalR @WorkMsg = %trim(@WorkMsg);
+             %subst(@WorkMsg : 1 : 1) = x'41';
+          Endif;
+          SendSubfileMessage(@Program : %trimr(@WorkMsg));
+          Clear @WorkMsg;
+
+       // Set screen conditions and values
+
+          *IN71 = L@Name  <> R@Name;
+          *IN72 = L@Desc  <> R@Desc;
+          *IN73 = L@Info  <> R@Info;
+
+          If L@CtxName <> *blank;
+             L@CtxTitle = %trim(L@CtxName) + ' - ' + %trim(L@CtxDesc);
+          Endif;
+
+          If R@CtxName <> *blank;
+             R@CtxTitle = %trim(R@CtxName) + ' - ' + %trim(R@CtxDesc);
+          Endif;
+
+          If L@CtxName = *blank;
+             L@CtxTitle = R@CtxTitle;
+          Endif;
+
+          If R@CtxName = *blank;
+             R@CtxTitle = L@CtxTitle;
+          Endif;
+
+          L@InfoD = %trimr(L@Info);
+          R@InfoD = %trimr(R@Info);
+
+       // Process detail screen
+
+          Write Msg_Ctl;
+          Exfmt OneRow_D;
+          ClearSubfileMessages(@Program);
+
+       // Check action required
+
+          If #WS.FunctionKeyPressed = #Cancel;
+             #WS.FunctionKeyPressed = #Enter;
+          ElseIf #WS.FunctionKeyPressed <> #Exit;
+             If @Option = 33 and not @Delete;
+                Exsr $Local_Update;
+             Endif;
+          Endif;
+
+       Endsr;
+
+       //--------------------------------------------------------------------
+
+       Begsr $Local_Update;
+
+       // Prep data values from screen values
+
+          Xtn_ID     = L@ID;
+          Xtn_Name   = R@Name;
+          Xtn_Desc   = R@Desc;
+          Xtn_Info   = %trim(R@Info);
+
+       // Update the database
+
+          If L@ID = *zero;
+             ConfigExtentInsert(@DB);
+          Else;
+             ConfigExtentUpdate(@DB);
+          Endif;
+
+          @ReloadSfl = *On;
+
+       Endsr;
+
+       //--------------------------------------------------------------------
+
+       Begsr $Data_Initialization;
+
+       // Set current server name
+
+          Exec Sql
+             Select   Current Server
+             Into     :@Local
+             From     Sysibm/SysDummy1;
+
+       // Set header values
+
+           L@Header1 = CenterString(%len(L@Header1) :
+                       %trim(@Local) + ' Extent Definitions');
+           L@Header2 = CenterString(%len(L@Header2) : L@Header1);
+           R@Header1 = CenterString(%len(R@Header1) :
+                       %trim(@Remote) + ' Extent Definitions');
+           R@Header2 = CenterString(%len(R@Header2) : R@Header1);
+
+       // Set tables and rights required
+
+           @TableNames(1)  = 'UTCFGXTN';
+           @TableRights(1) = 'CRUD';
+
+       // Set valid options
+
+           @AvlOpt(33) = '33=Copy ' + %trim(@Remote) +
+                         ' values to ' + %trim(@Local);
+           @AvlOpt(54) = '54=Compare Values';
+
+       // Set valid function keys
+
+           @AvlFnc(3)  = 'F3=Exit';
+           @AvlFnc(5)  = 'F5=Refresh';
+           @AvlFnc(12) = 'F12=Cancel';
+
+       // Load remote tables for processing
+
+          StageRemoteCTX(@Remote);
+          StageRemoteXtn(@Remote);
+
+       Endsr;
+    
+       //--------------------------------------------------------------------

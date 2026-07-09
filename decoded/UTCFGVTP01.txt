@@ -1,0 +1,23 @@
+----------------------------------------------------------------------
+-- DDL Generated 2010-12-03-07.58.34.038000 by job 954044/U4142GJN/U4142GJN_1
+--
+-- Model  . . : Utility Functions     UT Utility Functions and Tables
+-- Version  . : 1.01 - Development - Current
+-- Table  . . : UTCFGVTP              Configuration Variable Type Definitions
+-- Index  . . : UTCFGVTP01            UTCFGVTP by Variable Type Value
+--
+-- Create Options: Generate Drops:   NO
+--                 Generate Creates: YES
+--                 Target SQL:       iSeries DB2
+----------------------------------------------------------------------
+
+Create Unique Index UTCFGVTP01 on UTCFGVTP (
+    VTP_NAME Asc,
+    VTP_ID Asc);
+
+Label on Index UTCFGVTP01 is
+        'UTCFGVTP by Variable Type Value';
+
+Rename Index UTCFGVTP01
+    To CONFIGURATION_VARIABLE_TYPES_IDX_01
+    For System Name UTCFGVTP01;

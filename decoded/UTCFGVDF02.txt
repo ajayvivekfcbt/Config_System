@@ -1,0 +1,23 @@
+----------------------------------------------------------------------
+-- DDL Generated 2010-12-10-08.12.38.488000 by job 960560/U4142GJN/U4142GJN_1
+--
+-- Model  . . : Utility Functions     UT Utility Functions and Tables
+-- Version  . : 1.01 - Development - Current
+-- Table  . . : UTCFGVDF              Configuration Variable Definitions
+-- Index  . . : UTCFGVDF02            UTCFGVDF by Extent and Variable ID
+--
+-- Create Options: Generate Drops:   NO
+--                 Generate Creates: YES
+--                 Target SQL:       iSeries DB2
+----------------------------------------------------------------------
+
+Create Unique Index UTCFGVDF02 on UTCFGVDF (
+    XTN_ID Asc,
+    VDF_ID Asc);
+
+Label on Index UTCFGVDF02 is
+        'UTCFGVDF by Extent and Variable ID';
+
+Rename Index UTCFGVDF02
+    To CONFIGURATION_VARIABLE_DEFINITIONS_IDX_02
+    For System Name UTCFGVDF02;

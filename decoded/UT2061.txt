@@ -1,0 +1,165 @@
+     H OPTION(*SRCSTMT : *NODEBUGIO) CVTOPT(*NODATETIME) ALWNULL(*USRCTL)
+     H DFTACTGRP(*NO) ACTGRP(*CALLER) BNDDIR('QC2LE' : 'UTBIND' : 'UTCFG')
+      // -------------------------------------------------------------------------------------------
+      //
+      // Program  : UT2061 - Indented Configurations Listing
+      // Project  : Infrastructure - Configuration
+      // Author.  : G.Neale                          Date. . : 06/09/2011
+      //
+      // Narrative: Provide a listing of all configurations for a single server/scope
+      //
+      // -------------------------------------------------------------------------------------------
+      // Modification History:
+      //--------------------------------------------------------------------------------------------
+jse1  //   6/11/2012   J.Ellis   ChangeRequest: 3403 Sec/Audit Config Utility
+      //               Suppress display of password values.
+      //
+      // -------------------------------------------------------------------------------------------
+     FUT2061P   O    E             Printer OflInd(@OverFlow)
+     F                                     InfDs(#PR1)
+
+      /Copy QCPYSRC,INFDS_PR1
+      /Copy QCPYSRC,UTCFG_PR
+      /Copy QCPYSRC,UTBIND_PR
+
+      *--------------------------------------------------------------------
+      * Define specific prototypes
+      *--------------------------------------------------------------------
+     D EntryParms      PR                  EXTPGM('UT2061')
+     D                                9B 0 const                                Scope ID
+
+     D EntryParms      PI
+     D   @ScopeID                     9B 0 const                                Scope ID
+
+      *--------------------------------------------------------------------
+      * Define variables
+      *--------------------------------------------------------------------
+     D  @IsServer      S              1S 0
+     D  @Sort          S            100A
+     D  @Type          S              1S 0
+     D  @Name          S             50A
+     D  @VarDesc       S             50A
+     D  @VarVal        S            128A
+
+jse1 D  @SuppressFill  S             10    Inz('{********}')
+
+     *********************************************************************
+     **        M A I N L I N E    C O N T R O L    S E C T I O N
+     **********************************************************************
+
+      /FREE
+
+       // Force overflow on
+
+       @Overflow = *On;
+
+       // Get Server/scope type
+
+       EXEC SQL
+          SELECT   COALESCE(SCP_IS_SRV,0)
+          INTO     :@IsServer
+          FROM     UTCFGSCP
+          WHERE    SCP_ID = :@ScopeID
+          FETCH FIRST 1 ROW ONLY;
+
+       // Load header values
+
+       @Scope = %trim(ConfigFullScope(@ScopeID)) + ' - ' +
+                %trim(ConfigScopeDesc(@ScopeID));
+
+       // Retrieve the report data
+
+       EXEC SQL
+          DECLARE REPORT_CURSOR CURSOR FOR
+
+          SELECT   CTX.CTX_NAME,
+                   1,
+                   CTX.CTX_NAME,
+                   CTX.CTX_DESC,
+                   ' '
+          FROM     UTCFGCTX CTX
+          WHERE    CTX.CTX_IS_SRV = :@IsServer
+
+          UNION
+
+          SELECT   CTX.CTX_NAME || XTN.XTN_NAME,
+                   2,
+                   XTN.XTN_NAME,
+                   XTN.XTN_DESC,
+                   ' '
+          FROM     UTCFGCTX CTX
+                      JOIN
+                   UTCFGXTN XTN ON XTN.CTX_ID = CTX.CTX_ID
+          WHERE    CTX.CTX_IS_SRV = :@IsServer
+
+          UNION
+
+          SELECT   CTX.CTX_NAME || XTN.XTN_NAME || VDF.VDF_NAME,
+                   3,
+                   VDF.VDF_NAME,
+                   VDF.VDF_DESC,
+                   COALESCE(VAL.VAL_VARVAL,' ')
+          FROM     UTCFGCTX CTX
+                      JOIN
+                   UTCFGXTN XTN ON XTN.CTX_ID = CTX.CTX_ID
+                      JOIN
+                   UTCFGVDF VDF ON VDF.XTN_ID = XTN.XTN_ID
+                      LEFT JOIN
+                   UTCFGVAL VAL ON VAL.VDF_ID = VDF.VDF_ID AND
+                                   VAL.SCP_ID = :@ScopeID
+          WHERE    CTX.CTX_IS_SRV = :@IsServer
+
+          ORDER BY 1, 2;
+
+       // Open and process the data
+
+       EXEC SQL OPEN REPORT_CURSOR;
+
+       DOU SQLCOD <> *zero;
+
+          EXEC SQL FETCH REPORT_CURSOR
+             INTO  :@SORT, :@TYPE, :@NAME, :@VARDESC, :@VARVAL;
+
+          If SQLCOD = *zero;
+
+             Clear @PrintLine;
+
+             If @Overflow;
+                Write Heading;
+                @Overflow = *Off;
+             Endif;
+
+             If @Type = 1;
+                Write BlankLine;
+                %Subst(@PrintLine :  1 : 20) = %trim(@Name);
+                %Subst(@PrintLine : 42 : 50) = %trim(@VarDesc);
+             ElseIf @Type = 2;
+                %Subst(@PrintLine :  6 : 20) = %trim(@Name);
+                %Subst(@PrintLine : 47 : 50) = %trim(@VarDesc);
+             ElseIf @Type = 3;
+                %Subst(@PrintLine : 11 : 40) = %trim(@Name);
+                %Subst(@PrintLine : 52 : 50) = %trim(@VarDesc);
+                %Subst(@PrintLine : 103 : 70) = %trim(@VarVal);
+jse1            If (%Scan('PASS': Uppercase(@Name)) > *zero or
+jse1                %Scan('KEY': Uppercase(@Name)) > *zero ) and
+jse1               @VarVal <> *blanks  or
+jse1               (%Scan('PASS': Uppercase(@VarDesc)) > *zero or
+jse1                %Scan('KEY': Uppercase(@VarDesc)) > *zero ) and
+jse1               @VarVal <> *blanks;
+jse1                %Subst(@PrintLine : 103 : 70) = *blanks;
+jse1                %Subst(@PrintLine : 103 : 10) = @SuppressFill;
+jse1            Endif;
+             Endif;
+
+             Write Detail;
+
+          Endif;
+       Enddo;
+
+       EXEC SQL CLOSE REPORT_CURSOR;
+
+       // End of program
+
+       *INLR = *On;
+
+       //--------------------------------------------------------------------

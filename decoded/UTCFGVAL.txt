@@ -1,0 +1,52 @@
+----------------------------------------------------------------------
+-- DDL Generated 2011-03-01-11.55.28.244000 by job 026731/U4142GJN/U4142GJN_2
+--
+-- Model  . . : Utility Functions     UT Utility Functions and Tables
+-- Version  . : 1.01 - Development - Current
+-- Table  . . : UTCFGVAL              Configuration Variable Values
+--
+-- Create Options: Generate Drops:   NO
+--                 Generate Creates: YES
+--                 Target SQL:       iSeries DB2
+----------------------------------------------------------------------
+
+Create Table  UTCFGVAL (
+    CONFIGURATION_VARIABLE_VALUE_IDENTITY For Column VAL_ID
+        INT Not Null,
+    CONFIGURATION_VARIABLE_DEFINITION_IDENTITY For Column VDF_ID
+        INT Not Null,
+    CONFIGURATION_SCOPE_IDENTITY For Column SCP_ID
+        INT Not Null,
+    CONFIGURATION_VARIABLE_VALUE For Column VAL_VARVAL
+        VARCHAR(128) Not Null,
+    Constraint CONFIGURATION_VARIABLE_VALUES_CST_PK
+        Primary Key (
+        VAL_ID))
+
+    RCDFMT RUTCFGVAL;
+
+Label on Table UTCFGVAL is 'Configuration Variable Values';
+
+Label On Column UTCFGVAL (
+    CONFIGURATION_VARIABLE_VALUE_IDENTITY Is
+        'Configuration       Variable Value      Identity            ',
+    CONFIGURATION_VARIABLE_DEFINITION_IDENTITY Is
+        'Configuration       Variable Definition Identity            ',
+    CONFIGURATION_SCOPE_IDENTITY Is
+        'Configuration       Scope               Identity            ',
+    CONFIGURATION_VARIABLE_VALUE Is
+        'Configuration       Variable            Value               ');
+
+Label On Column UTCFGVAL (
+    CONFIGURATION_VARIABLE_VALUE_IDENTITY Text Is
+        'Configuration Variable Value Identity             ',
+    CONFIGURATION_VARIABLE_DEFINITION_IDENTITY Text Is
+        'Configuration Variable Definition Identity        ',
+    CONFIGURATION_SCOPE_IDENTITY Text Is
+        'Configuration Scope Identity                      ',
+    CONFIGURATION_VARIABLE_VALUE Text Is
+        'Configuration Variable Value                      ');
+
+Rename Table UTCFGVAL
+    To CONFIGURATION_VARIABLE_VALUES
+    For System Name UTCFGVAL;

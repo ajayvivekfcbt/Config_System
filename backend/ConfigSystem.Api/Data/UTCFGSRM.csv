@@ -1,0 +1,3 @@
+﻿CONFIGURATION_SCOPE_RESOLUTION_METHOD_IDENTITY,CONFIGURATION_SCOPE_RESOLUTION_METHOD_NAME,CONFIGURATION_SCOPE_RESOLUTION_METHOD_DESCRIPTION,CONFIGURATION_SCOPE_RESOLUTION_METHOD_INFORMATION
+"2","*SERVER             ","Server Name Match                                 ","This method attempts to match the current server against the list of defined serverers, and resolve a single match."
+"3","*LIBL               ","Library List Resolution                           ","This method is used when attempting to assign a scope to a specific library.  When utilized, the library list of the job will be used to compare against the server and scopes defined, and the first matching entry is used."

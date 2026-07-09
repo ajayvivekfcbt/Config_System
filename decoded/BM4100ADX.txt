@@ -1,0 +1,86 @@
+     H OPTION(*SRCSTMT : *NODEBUGIO : *NOUNREF) CVTOPT(*NODATETIME)
+     H ALWNULL(*USRCTL) DFTACTGRP(*NO)
+       //*******************************************************************************************
+       //
+       // Program  : BM4100ADX to update the bmxloans details into BMBMDATAD table
+       //
+       // Project  : CHG0047048 Business Metrics Report Exception detail report changes
+       // Author.  : Ajayvivek Pillai                Date. . : 04/10/2024
+       //
+       //  Narrative: This program is used to populate new table BMBMDATAD Business Metrics Exceptio
+       //             detail files facility/deal/ost/portfolio details based on the acct number from
+       //             BMXLOANS table.
+    ***************************************************************************
+    ** Data Definitions
+    ***************************************************************************
+     Dsqlstmt          S           1000
+     Dcriteria         S             20    dim(21) ctdata perrcd(1)
+     Di                S              2P 0 inz(1)
+
+      /free
+
+         i = 1;
+         dou i < 22 ;
+           sqlstmt = 'merge into bmbmdatad '  +
+                     'using  bmxloans '      +
+                     ' on    crd_loan = BM_ACCTNUM '    +
+                     ' and MAP_MASTER = ''Y'' '      +
+                     ' and bm_cricod  = ''' + %trim(criteria(i)) + '''' +
+                     ' and MAP_DROP = date(''01/01/0001'') ' +
+                     ' when matched then update '       +
+                     'set BM_DEALID = lIQ_deal,BM_FACLTY = liq_faclty, '  +
+                     'BM_OSTRID = LIQ_OSTRID  , BM_EXPCDE = LIQ_EXPCDE ' +
+                     ', BM_PORTFO = LIQ_PORTFO ' ;
+
+           exec sql execute immediate :sqlstmt;
+
+           sqlstmt = ' ';
+           sqlstmt = 'merge into bmbmdatad '  +
+                     ' using  bmxdepos '      +
+                     ' on   CRD_ACCTNO = BM_ACCTNUM '    +
+                     ' and bm_cricod  = ''' + %trim(criteria(i)) + '''' +
+                     ' when matched then update '       +
+                     ' set BM_DEALID = LIQ_DEALID,BM_FACLTY = LIQ_FACRID, '  +
+                     ' BM_OSTRID = LIQ_OSTRID  , BM_EXPCDE = LIQ_EXPCDE ' +
+                     ', BM_PORTFO = LIQ_PORTFO ' ;
+
+           exec sql execute immediate :sqlstmt;
+
+           sqlstmt = ' ';
+           sqlstmt = 'merge into bmbmdatad '  +
+                     ' using  BMXSTOCK '      +
+                     ' on   CRD_ACCTNO = BM_ACCTNUM '    +
+                     ' and bm_cricod  = ''' + %trim(criteria(i)) + '''' +
+                     ' when matched then update '       +
+                     ' set BM_DEALID = LIQ_DEALID,BM_FACLTY = LIQ_FACRID, '  +
+                     ' BM_OSTRID = LIQ_OSTRID  , BM_EXPCDE = LIQ_EXPCDE ' ;
+
+           exec sql execute immediate :sqlstmt;
+
+           i+=1;
+          enddo;
+          *inlr = *on;
+
+      /end-free
+**
+INT_ACCR_ACC
+INT_ACCR_SEC
+INT_ACCR_AIR
+INT_ACCR_NAC
+BAL_PRIN_NAC
+BAL_PRIN_ACC
+BAL_PRIN_AIR
+BAL_PRIN_SEC
+COMMIT_AVL_NAC
+COMMIT_AVL_ACC
+COMMIT_AVL_AIR
+LTR_CREDIT_ACC
+LTR_CREDIT_NAC
+LTR_CREDIT_AIR
+COMMIT_TOT_ACC
+COMMIT_TOT_NAC
+COMMIT_TOT_AIR
+BAL_ACCTS_REC
+BAL_FUNDS_HELD
+INT_FUNDS_HELD
+BAL_STOCK

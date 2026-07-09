@@ -1,0 +1,220 @@
+     H OPTION(*SRCSTMT : *NODEBUGIO) CVTOPT(*NODATETIME) ALWNULL(*USRCTL)
+     H DFTACTGRP(*NO) ACTGRP(*CALLER) BNDDIR('QC2LE' : 'UTBIND' : 'UTCFG')
+      // -------------------------------------------------------------------------------------------
+      //
+      // Program  : UT2062 - Configuration - Work wtih All variables for one server/scope
+      // Project  : Infrastructure - Configurations
+      // Author.  : G.Neale                          Date. . : 8/2/2011
+      //
+      // Narrative: Presents a list of all defined variables and values within one server/scope
+      //            and allows display or change of variable value
+      //
+      // -------------------------------------------------------------------------------------------
+      // Modification History:
+      //--------------------------------------------------------------------------------------------
+jse1  //   6/11/2012   J.Ellis   ChangeRequest: 3403 Sec/Audit Config Utility
+      //               Suppress display of password values.
+      //
+      // -------------------------------------------------------------------------------------------
+     FUT2062D   CF   E             WORKSTN SFILE(WW_LIST_S : @R1)
+     F                                     INFDS(#WS)
+
+      *--------------------------------------------------------------------
+      * Define specific prototypes
+      *--------------------------------------------------------------------
+     D EntryParms      PR                  EXTPGM('UT2062')
+     D                                9B 0 const                                Scope ID
+     D                                1A                                        End FKey
+
+     D EntryParms      PI
+     D   @Scp_ID                      9B 0 const                                Scope ID
+     D   @EndFKey                     1A                                        End FKey
+
+     D MaintainOneRow...
+     D                 PR                  EXTPGM('UT2028')
+     D                                9B 0 const                                Scope ID
+     D                                9B 0 const                                Variable Def ID
+     D                                2S 0 const                                Option Number
+     D                                9B 0 const                                Value ID
+     D                                1A                                        End FKey
+
+     D  @IsServer      S              1S 0
+     D  @Sort          S            100A
+     D  @Type          S              1S 0
+     D  @Name          S             50A
+     D  @VarDesc       S             50A
+     D  @VarVal        S            128A
+
+jse1 D  @SuppressFill  C                   Const(X'1C1C1C1C1C1C1C1C1C')
+
+      /Copy QCPYSRC,UTCFG_PR
+      /Copy QCPYSRC,UTCOM_WW
+
+      /FREE
+
+       //--------------------------------------------------------------------
+
+       Begsr $Load_Subfile;
+
+       // Retrieve the display data
+
+          EXEC SQL
+             DECLARE DISPLAY_CURSOR CURSOR FOR
+
+             SELECT   CTX.CTX_NAME,
+                      1,
+                      CTX.CTX_NAME,
+                      CTX.CTX_DESC,
+                      ' ',
+                      0,
+                      0
+             FROM     UTCFGCTX CTX
+             WHERE    CTX.CTX_IS_SRV = :@IsServer
+
+             UNION
+
+             SELECT   CTX.CTX_NAME || XTN.XTN_NAME,
+                      2,
+                      XTN.XTN_NAME,
+                      XTN.XTN_DESC,
+                      ' ',
+                      0,
+                      0
+             FROM     UTCFGCTX CTX
+                         JOIN
+                      UTCFGXTN XTN ON XTN.CTX_ID = CTX.CTX_ID
+             WHERE    CTX.CTX_IS_SRV = :@IsServer
+
+             UNION
+
+             SELECT   CTX.CTX_NAME || XTN.XTN_NAME || VDF.VDF_NAME,
+                      3,
+                      VDF.VDF_NAME,
+                      VDF.VDF_DESC,
+                      COALESCE(VAL.VAL_VARVAL,' '),
+                      VDF.VDF_ID,
+                      COALESCE(VAL.VAL_ID,0)
+             FROM     UTCFGCTX CTX
+                         JOIN
+                      UTCFGXTN XTN ON XTN.CTX_ID = CTX.CTX_ID
+                         JOIN
+                      UTCFGVDF VDF ON VDF.XTN_ID = XTN.XTN_ID
+                         LEFT JOIN
+                      UTCFGVAL VAL ON VAL.VDF_ID = VDF.VDF_ID AND
+                                      VAL.SCP_ID = :@Scp_ID
+             WHERE    CTX.CTX_IS_SRV = :@IsServer
+
+             ORDER BY 1, 2;
+
+       // Open and process the data
+
+          EXEC SQL OPEN DISPLAY_CURSOR;
+
+          DOU SQLCOD <> *zero;
+
+             EXEC SQL FETCH DISPLAY_CURSOR
+                INTO  :@SORT, :@TYPE, :@NAME, :@VARDESC,
+                      :@VARVAL, :@VDF_ID, :@VAL_ID;
+
+             If SQLCOD = *zero;
+
+                Clear @Text;
+
+                If @Type = 1;
+                   %Subst(@Text :  1 : 20) = %trim(@Name);
+                   %Subst(@Text : 38 : 40) = %trim(@VarDesc);
+                ElseIf @Type = 2;
+                   %Subst(@Text :  4 : 20) = %trim(@Name);
+                   %Subst(@Text : 41 : 40) = %trim(@VarDesc);
+                ElseIf @Type = 3;
+                   %Subst(@Text :  7 : 30) = %trim(@Name);
+                   %Subst(@Text : 44 : 40) = %trim(@VarDesc);
+                   %Subst(@Text : 86 : 40) = %trim(@VarVal);
+jse1               If (%Scan('PASS': Uppercase(@Name)) > *zero or
+jse1                   %Scan('KEY': Uppercase(@Name)) > *zero ) and
+jse1                  @VarVal <> *blanks  or
+jse1               (%Scan('PASS': Uppercase(@VarDesc)) > *zero or
+jse1                %Scan('KEY': Uppercase(@VarDesc)) > *zero ) and
+jse1               @VarVal <> *blanks;
+jse1                   %Subst(@Text : 86 : 40) = *blanks;
+jse1                   %Subst(@Text : 86 : 12) = @SuppressFill;
+jse1               Endif;
+                Endif;
+
+                *IN80 = @Vdf_ID <> *zero;
+
+                Exsr $Write_Subfile_Record;
+
+             Endif;
+          Enddo;
+
+          EXEC SQL CLOSE DISPLAY_CURSOR;
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+    
+       Begsr $Check_Function_Key_Requests;
+    
+          @ErrorMsg = 'Function key defined but not conditioned for';
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+    
+       Begsr $Process_One_Option;
+
+       // Condition function based upon option and authority
+
+           If @Option = 8;
+               InfoWindow(ConfigVarDefTitle(@Vdf_ID) :
+                          ConfigVarDefInfo(@Vdf_ID));
+           Elseif @Option = 2 or
+               @Option = 5;
+               MaintainOneRow(@Scp_ID : @Vdf_ID : @Option : @Val_ID : @EndFKey);
+               #WS.FunctionKeyPressed = @EndFKey;
+           Else;
+               @ErrorMsg = 'Option ' + %Char(@Option) +
+                           ' is defined but not supported by code';
+           Endif;
+
+       Endsr;
+
+       //--------------------------------------------------------------------
+
+       Begsr $Data_Initialization;
+
+       // Get Server/scope type
+
+          EXEC SQL
+             SELECT   COALESCE(SCP_IS_SRV,0)
+             INTO     :@IsServer
+             FROM     UTCFGSCP
+             WHERE    SCP_ID = :@Scp_ID
+             FETCH FIRST 1 ROW ONLY;
+
+       // Load header values
+
+          @Scp_Title = %trim(ConfigFullScope(@Scp_ID)) + ' - ' +
+                       %trim(ConfigScopeDesc(@Scp_ID));
+
+       // Set tables and rights required
+
+           @TableNames(1)  = 'UTCFGVAL';
+           @TableRights(1) = 'CRUD';
+
+       // Set valid options
+
+           @AvlOpt(2)  = '2=Change';
+           @AvlOpt(5)  = '5=Display';
+           @AvlOpt(8)  = '8=Info';
+
+       // Set valid function keys
+
+           @AvlFnc(3)  = 'F3=Exit';
+           @AvlFnc(5)  = 'F5=Refresh';
+           @AvlFnc(12) = 'F12=Cancel';
+
+       Endsr;
+    
+       //--------------------------------------------------------------------

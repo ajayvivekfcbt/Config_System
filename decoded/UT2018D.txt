@@ -1,0 +1,77 @@
+     A*%%TS  SD  20110301  063659  U4142GJN    REL-V6R1M0  5761-WDS
+     A*%%EC
+     A                                      DSPSIZ(27 132 *DS4)
+     A                                      CF01 CF02 CF03 CF04 CF05 CF06
+     A                                      CF07 CF08 CF09 CF10 CF11 CF12
+     A                                      CF13 CF14 CF15 CF16 CF17 CF18
+     A                                      CF19 CF20 CF21 CF22 CF23 CF24
+     A                                      HELP PRINT CLEAR
+     A                                      PAGEUP PAGEDOWN
+     A          R WW_LIST_S                 SFL
+     A*%%TS  SD  20110301  063659  U4142GJN    REL-V6R1M0  5761-WDS
+     A            @VARDEFID      9S 0H
+     A            @VALUEID       9S 0H
+     A            @OPTION        2Y 0B 12  3EDTCDE(Z)
+     A                                      DSPATR(HI)
+     A            @NAME         50A  O 12  7
+     A            @VALUE        74A  O 12 58
+     A          R WW_LIST_C                 SFLCTL(WW_LIST_S)
+     A*%%TS  SD  20110301  063659  U4142GJN    REL-V6R1M0  5761-WDS
+     A                                      SFLSIZ(0600)
+     A                                      SFLPAG(0013)
+     A                                      OVERLAY
+     A  41                                  SFLDSP
+     A  40                                  SFLDSPCTL
+     A N40                                  SFLCLR
+     A  41                                  SFLEND(*MORE)
+     A            @POSITION      4S 0H      SFLRCDNBR(CURSOR)
+     A                                  1  2DATE
+     A                                      EDTCDE(Y)
+     A                                  1 11TIME
+     A                                  1 20USER
+     A                                  1 51'Configuration - Variable Values'
+     A                                      DSPATR(HI)
+     A                                  1102SYSNAME
+     A            @PROGRAM      10A  O  1111
+     A                                  1122'WW_LIST_S'
+     A                                  3  2'Server:'
+     A            @SRV_TITLE    80A  O  3 12
+     A                                  4  2'Scope:'
+     A            @SCP_TITLE    80A  O  4 12
+     A                                  5  2'Context:'
+     A            @CTX_TITLE    80A  O  5 12
+     A                                  6  2'Extent:'
+     A            @XTN_TITLE    80A  O  6 12
+     A                                  8  2'Type options, press Enter.'
+     A                                      COLOR(BLU)
+     A            @OPTIONS     128   O  9  4COLOR(BLU)
+     A                                 11  2'Opt'
+     A                                      DSPATR(HI)
+     A                                      DSPATR(UL)
+     A                                 11  7'                  Variable Name   -
+     A                                                     '
+     A                                      DSPATR(HI)
+     A                                      DSPATR(UL)
+     A                                 11 58'                              Vari-
+     A                                      able Value                         -
+     A                                           '
+     A                                      DSPATR(UL)
+     A                                      DSPATR(HI)
+     A          R WW_LIST_O
+     A*%%TS  SD  20101213  083701  U4142GJN    REL-V6R1M0  5761-WDS
+     A                                      OVERLAY
+     A            @FUNCTIONS   130   O 26  2COLOR(BLU)
+     A          R MSG_SFL                   SFL
+     A                                      SFLMSGRCD(27)
+     A            @MSGKEY                   SFLMSGKEY
+     A            @PROGRAM                  SFLPGMQ
+     A
+     A          R MSG_CTL                   SFLCTL(MSG_SFL)
+     A                                      SFLSIZ(0100)
+     A                                      SFLPAG(0001)
+     A                                      OVERLAY
+     A                                      SFLDSP
+     A                                      SFLDSPCTL
+     A                                      SFLINZ
+     A N99                                  SFLEND
+     A            @PROGRAM                  SFLPGMQ(10)

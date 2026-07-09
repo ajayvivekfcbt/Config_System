@@ -1,0 +1,289 @@
+     H OPTION(*SRCSTMT : *NODEBUGIO) CVTOPT(*NODATETIME) ALWNULL(*USRCTL)
+     H DFTACTGRP(*NO) ACTGRP(*CALLER) BNDDIR('QC2LE' : 'UTBIND' : 'UTCFG')
+      // -------------------------------------------------------------------------------------------
+      //
+      // Program  : UT2070 - Conform Configuration Variable Type Definitions
+      // Project  : Infrastructure - Configuration
+      // Author.  : G.Neale                          Date. . : 11/26/2011
+      //
+      // Narrative: Provide ability to conform values across servers
+      //
+      // -------------------------------------------------------------------------------------------
+      // Modification History:
+      //--------------------------------------------------------------------------------------------
+      //
+      // -------------------------------------------------------------------------------------------
+     FUT2070D   CF   E             WORKSTN SFILE(WW_LIST_S : @R1)
+     F                                     INFDS(#WS)
+
+      *--------------------------------------------------------------------
+      * Define entry prototype and procedure interface
+      *--------------------------------------------------------------------
+     D EntryParms      PR                  EXTPGM('UT2070')
+     D                               20A                                        Remote Server
+     D                                1A                                        End FKey
+
+     D EntryParms      PI
+     D   @Remote                     20A                                        Remote Server
+     D   @EndFKey                     1A                                        End FKey
+
+      *--------------------------------------------------------------------
+      * Define specific prototypes
+      *--------------------------------------------------------------------
+     D StageRemoteVTP...
+     D                 PR                  EXTPGM('UT2080')
+     D                               20A                                        Remote Server
+
+      *--------------------------------------------------------------------
+      * Define database work structure
+      *--------------------------------------------------------------------
+     D @DB           E DS                  ExtName(UTCFGVTP) INZ
+
+      *--------------------------------------------------------------------
+      * Define specific variables
+      *--------------------------------------------------------------------
+     D  @StageError    S            512A   Varying                              Stage build error
+     D  L@Len          S             10I 0
+     D  R@Len          S             10I 0
+     D  @WorkMsg       S            129A
+     D  @Delete        S               N                                        Implied delete flag
+     D  @Local         S             20A
+
+      /Copy QCPYSRC,UTCFG_PR
+      /Copy QCPYSRC,UTCOM_WW
+
+      /FREE
+
+       //--------------------------------------------------------------------
+
+       Begsr $Load_Subfile;
+
+       // Determine maximum code length - local
+
+          EXEC SQL
+             SELECT   MAX(LENGTH(TRIM(VTP_NAME)))
+             INTO     :L@LEN
+             FROM     UTCFGVTP;
+
+       // Determine maximum code length - remote
+
+          EXEC SQL
+             SELECT   MAX(LENGTH(TRIM(VTP_NAME)))
+             INTO     :R@LEN
+             FROM     TEMP_VTP;
+
+       // Retrieve the data for display
+
+          EXEC SQL DECLARE LIST_CURSOR CURSOR FOR
+             SELECT   COALESCE(L.VTP_ID,0),
+                      COALESCE(L.VTP_NAME,' '),
+                      COALESCE(L.VTP_DESC,' '),
+                      COALESCE(TRIM(L.VTP_PROC),' '),
+                      COALESCE(TRIM(L.VTP_INFO),' '),
+                      COALESCE(R.VTP_ID,'0'),
+                      COALESCE(R.VTP_NAME,' '),
+                      COALESCE(R.VTP_DESC,' '),
+                      COALESCE(TRIM(R.VTP_PROC),' '),
+                      COALESCE(TRIM(R.VTP_INFO),' ')
+             FROM     UTCFGVTP L
+                         FULL JOIN
+                      TEMP_VTP R ON UPPER(R.VTP_NAME) = UPPER(L.VTP_NAME)
+             ORDER BY CASE WHEN L.VTP_NAME IS NULL THEN UPPER( R.VTP_NAME)
+                           ELSE UPPER(L.VTP_NAME) END;
+
+          EXEC SQL OPEN LIST_CURSOR;
+
+          DOU SQLCOD <> *zero;
+
+             EXEC SQL
+                FETCH LIST_CURSOR INTO
+                      :L@ID, :L@NAME, :L@DESC, :L@PROC, :L@INFO,
+                      :R@ID, :R@NAME, :R@DESC, :R@PROC, :R@INFO;
+
+             If SQLCOD = *zero;
+
+                If L@Name <> *blank;
+                   L@Value = %subst(L@NAME: 1 : L@LEN) + ' - ' + %trim(L@DESC);
+                Else;
+                   L@Value = x'28' + 'Row does not exist';
+                Endif;
+
+                If R@Name <> *blank;
+                   R@Value = %subst(R@NAME: 1 : R@LEN) + ' - ' + %trim(R@DESC);
+                Else;
+                   R@Value = x'28' + 'Row does not exist';
+                Endif;
+
+                If L@ID = *zero or
+                   R@ID = *zero or
+                   L@Name <> R@Name or
+                   L@Desc <> R@Desc or
+                   L@Proc <> R@Proc or
+                   L@Info <> R@Info;
+                   *IN70 = *On;
+                Else;
+                   *IN70 = *Off;
+                Endif;
+
+                Exsr $Write_Subfile_Record;
+             Endif;
+          Enddo;
+
+          EXEC SQL CLOSE LIST_CURSOR;
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+    
+       Begsr $Check_Function_Key_Requests;
+    
+       // No functions supported
+
+          @ErrorMsg = 'Function key defined but not conditioned for';
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+    
+       Begsr $Process_One_Option;
+
+       // Condition function based upon option and authority
+
+          If @Option = 54 or
+             @Option = 33;
+             Exsr $One_Option_Detail;
+          Else;
+             @ErrorMsg = 'Option ' + %Char(@Option) +
+                         ' is defined but not supported by code';
+          Endif;
+
+       Endsr;
+
+       //--------------------------------------------------------------------
+
+       Begsr $One_Option_Detail;
+
+       // Determine if implied delete (exists on local but not on remote)
+
+          If L@ID <> *zero and
+             R@ID = *zero;
+             @Delete = *On;
+          Else;
+             @Delete = *Off;
+          Endif;
+
+       // If no error message to display, load option specific value
+
+          If @Option = 54;
+             @WorkMsg = '* Press "ENTER" to continue.';
+          ElseIf @Option = 33 and not @Delete;
+             @WorkMsg = '* Press "ENTER" to copy ' +
+                         %trim(@Remote) + ' values to ' + %trim(@Local);
+          ElseIf @Option = 33 and @Delete;
+             @WorkMsg = 'Row does not exist on remote server - ' +
+                        'implied delete function is not supported.';
+          Endif;
+
+          If not @Delete;
+             EvalR @WorkMsg = %trim(@WorkMsg);
+             %subst(@WorkMsg : 1 : 1) = x'41';
+          Endif;
+          SendSubfileMessage(@Program : %trimr(@WorkMsg));
+          Clear @WorkMsg;
+
+       // Set screen conditions and values
+
+          *IN71 = L@Name <> R@Name;
+          *IN72 = L@Desc <> R@Desc;
+          *IN73 = L@Proc <> R@Proc;
+          *IN74 = L@Info <> R@Info;
+
+          L@InfoD = %trimr(L@Info);
+          R@InfoD = %trimr(R@Info);
+
+       // Process detail screen
+
+          Write Msg_Ctl;
+          Exfmt OneRow_D;
+          ClearSubfileMessages(@Program);
+
+       // Check action required
+
+          If #WS.FunctionKeyPressed = #Cancel;
+             #WS.FunctionKeyPressed = #Enter;
+          ElseIf #WS.FunctionKeyPressed <> #Exit;
+             If @Option = 33 and not @Delete;
+                Exsr $Local_Update;
+             Endif;
+          Endif;
+
+       Endsr;
+
+       //--------------------------------------------------------------------
+
+       Begsr $Local_Update;
+
+       // Prep data values from screen values
+
+          Vtp_ID   = L@ID;
+          Vtp_Name = R@Name;
+          Vtp_Desc = R@Desc;
+          Vtp_Info = %trim(R@Info);
+          Vtp_Info = %trim(R@Info);
+
+       // Update the database
+
+          If L@ID = *zero;
+             ConfigVarTypeInsert(@DB);
+          Else;
+             ConfigVarTypeUpdate(@DB);
+          Endif;
+
+          @ReloadSfl = *On;
+
+       Endsr;
+
+       //--------------------------------------------------------------------
+
+       Begsr $Data_Initialization;
+
+       // Set current server name
+
+          Exec Sql
+             Select   Current Server
+             Into     :@Local
+             From     Sysibm/SysDummy1;
+
+       // Set header values
+
+           L@Header1 = CenterString(%len(L@Header1) :
+                       %trim(@Local) + ' Variable Type Definitions');
+           L@Header2 = CenterString(%len(L@Header2) : L@Header1);
+           R@Header1 = CenterString(%len(R@Header1) :
+                       %trim(@Remote) + ' Variable Type Definitions');
+           R@Header2 = CenterString(%len(R@Header2) : R@Header1);
+
+       // Set tables and rights required
+
+           @TableNames(1)  = 'UTCFGVTP';
+           @TableRights(1) = 'CRUD';
+
+       // Set valid options
+
+          @AvlOpt(33) = '33=Copy ' + %trim(@Remote) +
+                        ' values to ' + %trim(@Local);
+          @AvlOpt(54) = '54=Compare Values';
+
+       // Set valid function keys
+
+           @AvlFnc(3)  = 'F3=Exit';
+           @AvlFnc(5)  = 'F5=Refresh';
+           @AvlFnc(12) = 'F12=Cancel';
+
+       // Load remote table for processing
+
+          StageRemoteVTP(@Remote);
+
+       Endsr;
+    
+       //--------------------------------------------------------------------

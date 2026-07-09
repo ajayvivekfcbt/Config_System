@@ -1,0 +1,62 @@
+using ConfigSystem.Api.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace ConfigSystem.Api.Data;
+
+public class ConfigDbContext : DbContext
+{
+    public ConfigDbContext(DbContextOptions<ConfigDbContext> options) : base(options) { }
+
+    public DbSet<VariableType> VariableTypes => Set<VariableType>();
+    public DbSet<ScopeResolutionMethod> ScopeResolutionMethods => Set<ScopeResolutionMethod>();
+    public DbSet<Server> Servers => Set<Server>();
+    public DbSet<Context> Contexts => Set<Context>();
+    public DbSet<Extent> Extents => Set<Extent>();
+    public DbSet<Scope> Scopes => Set<Scope>();
+    public DbSet<VariableDefinition> VariableDefinitions => Set<VariableDefinition>();
+    public DbSet<ValidValue> ValidValues => Set<ValidValue>();
+    public DbSet<VariableValue> VariableValues => Set<VariableValue>();
+
+    protected override void OnModelCreating(ModelBuilder b)
+    {
+        b.Entity<VariableType>().ToTable("UTCFGVTP");
+        b.Entity<ScopeResolutionMethod>().ToTable("UTCFGSRM");
+        b.Entity<Server>().ToTable("UTCFGSRV");
+        b.Entity<Context>().ToTable("UTCFGCTX");
+        b.Entity<Extent>().ToTable("UTCFGXTN");
+        b.Entity<Scope>().ToTable("UTCFGSCP");
+        b.Entity<VariableDefinition>().ToTable("UTCFGVDF");
+        b.Entity<ValidValue>().ToTable("UTCFGVVL");
+        b.Entity<VariableValue>().ToTable("UTCFGVAL");
+
+        // Mirror the original DB2 foreign-key relationships.
+        b.Entity<Extent>()
+            .HasOne(x => x.Context).WithMany(c => c.Extents)
+            .HasForeignKey(x => x.ContextId).OnDelete(DeleteBehavior.Restrict);
+
+        b.Entity<Scope>()
+            .HasOne(s => s.Server).WithMany(srv => srv.Scopes)
+            .HasForeignKey(s => s.ServerId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<Scope>()
+            .HasOne(s => s.ScopeResolutionMethod).WithMany(m => m.Scopes)
+            .HasForeignKey(s => s.ScopeResolutionMethodId).OnDelete(DeleteBehavior.Restrict);
+
+        b.Entity<VariableDefinition>()
+            .HasOne(v => v.Extent).WithMany(e => e.VariableDefinitions)
+            .HasForeignKey(v => v.ExtentId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<VariableDefinition>()
+            .HasOne(v => v.VariableType).WithMany(t => t.VariableDefinitions)
+            .HasForeignKey(v => v.VariableTypeId).OnDelete(DeleteBehavior.Restrict);
+
+        b.Entity<ValidValue>()
+            .HasOne(v => v.VariableDefinition).WithMany(d => d.ValidValues)
+            .HasForeignKey(v => v.VariableDefinitionId).OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<VariableValue>()
+            .HasOne(v => v.VariableDefinition).WithMany(d => d.VariableValues)
+            .HasForeignKey(v => v.VariableDefinitionId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<VariableValue>()
+            .HasOne(v => v.Scope).WithMany(s => s.VariableValues)
+            .HasForeignKey(v => v.ScopeId).OnDelete(DeleteBehavior.Restrict);
+    }
+}

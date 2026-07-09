@@ -1,0 +1,178 @@
+     H OPTION(*SRCSTMT : *NODEBUGIO) CVTOPT(*NODATETIME) ALWNULL(*USRCTL)
+     H DFTACTGRP(*NO) ACTGRP(*CALLER) BNDDIR('QC2LE' : 'UTBIND' : 'UTCFG')
+      // -------------------------------------------------------------------------------------------
+      //
+      // Program  : UT2072 - Conform Configuration Across Servers
+      // Project  : Infrastructure - Configuration
+      // Author.  : G.Neale                          Date. . : 11/29/2011
+      //
+      // Narrative: Provide list of servers <> current server for conform selection
+      //
+      // -------------------------------------------------------------------------------------------
+      // Modification History:
+      //--------------------------------------------------------------------------------------------
+      //
+      // -------------------------------------------------------------------------------------------
+     FUT2072D   CF   E             WORKSTN SFILE(WW_LIST_S : @R1)
+     F                                     INFDS(#WS)
+
+      *--------------------------------------------------------------------
+      * Define specific prototypes
+      *--------------------------------------------------------------------
+     D MaintainOneRow...
+     D                 PR                  EXTPGM('UT2022')
+     D                                2S 0 const                                Option Number
+     D                                9B 0 const                                Row ID
+     D                                1A                                        End FKey
+
+     D ConformVariableTypes...
+     D                 PR                  EXTPGM('UT2070')
+     D                               20A                                        Remote Server
+     D                                1A                                        End FKey
+
+     D ConformSourceResMeths...
+     D                 PR                  EXTPGM('UT2071')
+     D                               20A                                        Remote Server
+     D                                1A                                        End FKey
+
+     D ConformContexts...
+     D                 PR                  EXTPGM('UT2074')
+     D                               20A                                        Remote Server
+     D                                1A                                        End FKey
+
+     D ConformExtents...
+     D                 PR                  EXTPGM('UT2075')
+     D                               20A                                        Remote Server
+     D                                1A                                        End FKey
+
+     D*ConformVarDefs...
+     D*                PR                  EXTPGM('UT2076')
+     D*                              20A                                        Remote Server
+     D*                               1A                                        End FKey
+
+     D*ConformVarVals...
+     D*                PR                  EXTPGM('UT2077')
+     D*                              20A                                        Remote Server
+     D*                               1A                                        End FKey
+
+      *--------------------------------------------------------------------
+      * Define variables
+      *--------------------------------------------------------------------
+     D  @EndFKey       S              1A                                        Return Function Key
+     D  @Server        S             20A
+
+      /Copy QCPYSRC,UTCFG_PR
+      /Copy QCPYSRC,UTCOM_WW
+
+      /FREE
+
+       //--------------------------------------------------------------------
+
+       Begsr $Load_Subfile;
+
+       // Retrieve the data for display
+
+           EXEC SQL
+               DECLARE LIST_CURSOR CURSOR FOR
+               SELECT   SRV_ID, SRV_NAME, SRV_DESC
+               FROM     UTCFGSRV
+               WHERE    UPPER(SRV_MATCH) <> :@Server
+               ORDER BY UPPER(SRV_NAME);
+
+           EXEC SQL OPEN LIST_CURSOR;
+
+           DOU SQLCOD <> *zero;
+
+               EXEC SQL
+                   FETCH LIST_CURSOR
+                   INTO  :@ID, :@NAME, :@DESC;
+
+               If SQLCOD = *zero;
+                   Exsr $Write_Subfile_Record;
+               Endif;
+           Enddo;
+
+           EXEC SQL CLOSE LIST_CURSOR;
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+    
+       Begsr $Check_Function_Key_Requests;
+    
+       // No function keys supported
+
+          @ErrorMsg = 'Function key defined but not conditioned for';
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+    
+       Begsr $Process_One_Option;
+
+       // Condition function based upon option and authority
+
+          If @Option = 5;
+             MaintainOneRow(@Option : @ID : @EndFKey);
+             #WS.FunctionKeyPressed = @EndFKey;
+          ElseIf @Option = 31;
+             ConformVariableTypes(@Name : @EndFKey);
+             #WS.FunctionKeyPressed = @EndFKey;
+          ElseIf @Option = 32;
+             ConformSourceResMeths(@Name : @EndFKey);
+             #WS.FunctionKeyPressed = @EndFKey;
+          ElseIf @Option = 33;
+             ConformContexts(@Name : @EndFKey);
+             #WS.FunctionKeyPressed = @EndFKey;
+          ElseIf @Option = 34;
+             ConformExtents(@Name : @EndFKey);
+             #WS.FunctionKeyPressed = @EndFKey;
+       // ElseIf @Option = 35;
+       //    ConformVarDefs(@Name : @EndFKey);
+       //    #WS.FunctionKeyPressed = @EndFKey;
+       // ElseIf @Option = 36;
+       //    ConformVarVals(@Name : @EndFKey);
+          Else;
+             @ErrorMsg = 'Option ' + %Char(@Option) +
+                         ' is defined but not supported by code';
+          Endif;
+
+       Endsr;
+
+       //--------------------------------------------------------------------
+
+       Begsr $Data_Initialization;
+
+       // Set header values
+
+       // Set tables and rights required
+
+           @TableNames(1)  = 'UTCFGSRV';
+           @TableRights(1) = 'R';
+
+       // Set valid options
+
+           @AvlOpt(5)  = '5=Display';
+           @AvlOpt(31) = '31=Variable Types';
+           @AvlOpt(32) = '32=Scope Resolutions';
+           @AvlOpt(33) = '33=Contexts';
+           @AvlOpt(34) = '34=Extents';
+       //  @AvlOpt(35) = '35=Variables';
+       //  @AvlOpt(36) = '36=Variable Valid Values';
+
+       // Set valid function keys
+
+           @AvlFnc(3)  = 'F3=Exit';
+           @AvlFnc(5)  = 'F5=Refresh';
+           @AvlFnc(12) = 'F12=Cancel';
+
+       // Set current server name
+
+           Exec Sql
+              Select   Current Server
+              Into     :@Server
+              From     Sysibm/SysDummy1;
+
+       Endsr;
+    
+       //--------------------------------------------------------------------

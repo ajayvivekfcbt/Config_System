@@ -1,0 +1,168 @@
+     H OPTION(*SRCSTMT : *NODEBUGIO) CVTOPT(*NODATETIME) ALWNULL(*USRCTL)
+     H DFTACTGRP(*NO) ACTGRP(*CALLER)
+     H BNDDIR('QC2LE' : 'UTBIND' : 'UTCFG')
+      // -------------------------------------------------------------------------------------------
+      //
+      // Program  : UT2020 - Single Row Maintenance for UTCFGVTP - Vrariable Types
+      // Project  : Infrastructure - Configuration
+      // Author.  : G.Neale                          Date. . : 02/24/2011
+      //
+      // Narrative: Single Row Maintenance Functionality for UTCFGVTP file
+      //
+      // -------------------------------------------------------------------------------------------
+      // Modification History:
+      //--------------------------------------------------------------------------------------------
+      //
+      // -------------------------------------------------------------------------------------------
+     FUT2020D   CF   E             WORKSTN INFDS(#WS)
+
+      *--------------------------------------------------------------------
+      * Define entry prototype and procedure interface
+      *--------------------------------------------------------------------
+     D EntryParms      PR                  EXTPGM('UT2020')
+     D                                2S 0 const                                Option Number
+     D                                9B 0 const                                Row ID
+     D                                1A                                        End FKey
+
+     D EntryParms      PI
+     D   @Option                      2S 0 const                                Option Number
+     D   @ID                          9B 0 const                                Row ID
+     D   @EndFKey                     1A                                        End FKey
+
+      /Copy QCPYSRC,UTCFG_PR
+
+      *--------------------------------------------------------------------
+      * Define database work structure
+      *--------------------------------------------------------------------
+     D @DB           E DS                  ExtName(UTCFGVTP) INZ
+
+      *--------------------------------------------------------------------
+      * Define specific variables
+      *--------------------------------------------------------------------
+     D @ReturnID       S              9B 0
+
+      /Copy QCPYSRC,UTCOM_RM
+      /FREE
+
+       //--------------------------------------------------------------------
+
+       Begsr $One_Row_Edit;
+
+       // Reset error conditions
+
+           Clear @ErrorMsg;
+
+       // Left justify all alpha fields
+
+           Vtp_Name   = TrimAndCheck(%trimr(Vtp_Name  ) : *IN95);
+           Vtp_Desc   = TrimAndCheck(%trimr(Vtp_Desc  ) : *IN95);
+
+       // Name is required
+
+           If @ErrorMsg = *blank and
+               Vtp_Name = *blank;
+               @ErrorMsg = 'Name is a required entry';
+           Endif;
+
+       // Name must be unique
+
+           If @ErrorMsg = *blank and
+               (@Option = 2 and
+               ConfigVarTypeID(Vtp_Name) <> *zero and
+               ConfigVarTypeID(Vtp_Name) <> @Id) or
+               (@Option <> 2 and
+               ConfigVarTypeID(Vtp_Name) <> *zero);
+               @ErrorMsg = 'Name is a duplicate entry';
+           Endif;
+
+       // Description is required
+
+           If @ErrorMsg = *blank and
+               Vtp_Desc = *blank;
+               @ErrorMsg = 'Description is a required entry';
+           Endif;
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+
+       Begsr $One_Row_Update;
+
+       // Load screen values to database values
+
+           Vtp_Proc = %trimr(@Proc);
+           Vtp_Info = %trimr(@Info);
+
+       // Execute method appropriate for action
+
+           If @Option = *zero or
+               @Option = 3;
+               ConfigVarTypeInsert(@DB);
+           ElseIf @Option = 2;
+               ConfigVarTypeUpdate(@DB);
+           ElseIf @Option = 4;
+               ConfigVarTypeDelete(@DB);
+           Endif;
+
+       Endsr;
+    
+       //---------------------------------------------------------------------
+
+       Begsr $Prompt;
+
+       // check for prompt on field where cursor is positioned
+
+          @ErrorMsg = 'Prompt function not supported or defined ' +
+                      'at current cursor position';
+
+       Endsr;
+    
+       //---------------------------------------------------------------------
+
+       Begsr $Check_Function_Key_Requests;
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+
+       Begsr $Data_Initialization;
+
+       // If @Id received - get row
+
+           If @Id <> *Zero;
+               @DB = ConfigVarTypeGet(@Id);
+           Endif;
+
+       // Set tables and rights required
+
+           @TableNames(1)  = 'UTCFGVTP';
+           @TableRights(1) = 'CRUD';
+
+       // Set valid function keys
+
+           @AvlFnc(3)  = 'F3=Exit';
+           @AvlFnc(5)  = 'F5=Refresh';
+           @AvlFnc(12) = 'F12=Cancel';
+
+       // Check for delete with child records
+
+           If @Option = 4 and
+              ConfigVarTypeKids(@Id) > *zero;
+               Write OneRow_D;
+               DeleteRestricted();
+               #WS.FunctionKeyPressed = #Cancel;
+               Exsr $Abort;
+           Endif;
+
+       // Translate stored into displayed values
+
+           @Info = Vtp_Info;
+           @Proc = Vtp_Proc;
+
+       // Set refresh flag off
+
+           @Refresh = *off;
+
+       Endsr;
+    
+       //--------------------------------------------------------------------

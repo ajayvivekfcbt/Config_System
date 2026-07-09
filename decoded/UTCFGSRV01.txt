@@ -1,0 +1,23 @@
+----------------------------------------------------------------------
+-- DDL Generated 2011-03-01-11.55.27.808000 by job 026731/U4142GJN/U4142GJN_2
+--
+-- Model  . . : Utility Functions     UT Utility Functions and Tables
+-- Version  . : 1.01 - Development - Current
+-- Table  . . : UTCFGSRV              Configuration Server Definitions
+-- Index  . . : UTCFGSRV01            UTCFGSRV by Server Name
+--
+-- Create Options: Generate Drops:   NO
+--                 Generate Creates: YES
+--                 Target SQL:       iSeries DB2
+----------------------------------------------------------------------
+
+Create Unique Index UTCFGSRV01 on UTCFGSRV (
+    SRV_NAME Asc,
+    SRV_ID Asc);
+
+Label on Index UTCFGSRV01 is
+        'UTCFGSRV by Server Name';
+
+Rename Index UTCFGSRV01
+    To CONFIGURATION_SERVER_DEFINITIONS_IDX_01
+    For System Name UTCFGSRV01;

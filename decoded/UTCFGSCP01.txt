@@ -1,0 +1,23 @@
+----------------------------------------------------------------------
+-- DDL Generated 2011-03-01-11.55.27.923000 by job 026731/U4142GJN/U4142GJN_2
+--
+-- Model  . . : Utility Functions     UT Utility Functions and Tables
+-- Version  . : 1.01 - Development - Current
+-- Table  . . : UTCFGSCP              Configuration Scope Definitions
+-- Index  . . : UTCFGSCP01            UTCFGSCP by Scope Value
+--
+-- Create Options: Generate Drops:   NO
+--                 Generate Creates: YES
+--                 Target SQL:       iSeries DB2
+----------------------------------------------------------------------
+
+Create Unique Index UTCFGSCP01 on UTCFGSCP (
+    SCP_NAME Asc,
+    SCP_ID Asc);
+
+Label on Index UTCFGSCP01 is
+        'UTCFGSCP by Scope Value';
+
+Rename Index UTCFGSCP01
+    To CONFIGURATION_SCOPE_DEFINITIONS_IDX_01
+    For System Name UTCFGSCP01;

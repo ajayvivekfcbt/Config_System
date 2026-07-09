@@ -1,0 +1,24 @@
+----------------------------------------------------------------------
+-- DDL Generated 2010-12-03-07.58.35.371000 by job 954044/U4142GJN/U4142GJN_1
+--
+-- Model  . . : Utility Functions     UT Utility Functions and Tables
+-- Version  . : 1.01 - Development - Current
+-- Table  . . : UTCFGXTN              Configuration Extent Definitions
+-- Index  . . : UTCFGXTN02            UTCFGXTN by Context Identity & Extent Valu
+--
+-- Create Options: Generate Drops:   NO
+--                 Generate Creates: YES
+--                 Target SQL:       iSeries DB2
+----------------------------------------------------------------------
+
+Create Unique Index UTCFGXTN02 on UTCFGXTN (
+    CTX_ID Asc,
+    XTN_NAME Asc,
+    XTN_ID Asc);
+
+Label on Index UTCFGXTN02 is
+        'UTCFGXTN by Context Identity & Extent Value';
+
+Rename Index UTCFGXTN02
+    To CONFIGURATION_EXTENT_DEFINITIONS_IDX_02
+    For System Name UTCFGXTN02;

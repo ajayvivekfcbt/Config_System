@@ -1,0 +1,80 @@
+     A*%%TS  SD  20110224  163913  U4142GJN    REL-V6R1M0  5761-WDS
+     A*%%EC
+     A                                      DSPSIZ(27 132 *DS4)
+     A                                      CF01 CF02 CF03 CF04 CF05 CF06
+     A                                      CF07 CF08 CF09 CF10 CF11 CF12
+     A                                      CF13 CF14 CF15 CF16 CF17 CF18
+     A                                      CF19 CF20 CF21 CF22 CF23 CF24
+     A                                      HELP PRINT CLEAR
+     A                                      PAGEUP PAGEDOWN
+     A          R ONEROW_D
+     A*%%TS  SD  20110130  093218  U4142GJN    REL-V6R1M0  5761-WDS
+     A                                      OVERLAY
+     A                                  1  2DATE
+     A                                      EDTCDE(Y)
+     A                                  1 11TIME
+     A                                  1 20USER
+     A                                  1 55'Configuration - Context'
+     A                                      DSPATR(HI)
+     A                                  1102SYSNAME
+     A            @PROGRAM      10A  O  1111
+     A                                  1122'ONEROW_D'
+     A                                  3  2'Context Name . . . . . . . :'
+     A            CTX_NAME      20A  O  3 32
+     A                                  4  2'Context Description  . . . :'
+     A            CTX_DESC      50A  O  4 32
+     A                                  6  2'Context is Server Level  . :'
+     A            @YN_IS_SRV     3A  O  6 32
+     A                                  6 44'(YES/NO)'
+     A                                  8  2'Context Info Text  . . . . :'
+     A            @INFO       1700A  B  8 32CHGINPDFT
+     A                                      CNTFLD(100)
+     A                                      DSPATR(PR)
+     A            @FUNCTIONS    88   O 26  2COLOR(BLU)
+     A            @BOP_TEXT     40A  O 26 92DSPATR(HI)
+     A          R ONEROW_M
+     A*%%TS  SD  20110130  093218  U4142GJN    REL-V6R1M0  5761-WDS
+     A                                      RTNCSRLOC(&@PROMPTREC &@PROMPTFLD)
+     A                                      OVERLAY
+     A                                      SETOF(95)
+     A                                      CHANGE(95)
+     A            @PROMPTREC    10A  H
+     A            @PROMPTFLD    10A  H
+     A                                  1  2DATE
+     A                                      EDTCDE(Y)
+     A                                  1 11TIME
+     A                                  1 20USER
+     A                                  1 55'Configuration - Context'
+     A                                      DSPATR(HI)
+     A                                  1102SYSNAME
+     A            @PROGRAM      10A  O  1111
+     A                                  1122'ONEROW_M '
+     A                                  3  2'Context Name . . . . . . . :'
+     A            CTX_NAME      20A  B  3 32CHECK(LC)
+     A                                      DSPATR(HI)
+     A                                  4  2'Context Description  . . . :'
+     A            CTX_DESC      50A  B  4 32CHECK(LC)
+     A                                      DSPATR(HI)
+     A                                  6  2'Context is Server Level  . :'
+     A            @YN_IS_SRV     3A  B  6 32DSPATR(HI)
+     A                                  6 44'(YES/NO)'
+     A                                  8  2'Context Info Text  . . . . :'
+     A            @INFO       1700A  B  8 32CNTFLD(100)
+     A                                      CHECK(LC)
+     A                                      DSPATR(HI)
+     A            @FUNCTIONS    88   O 26  2COLOR(BLU)
+     A            @BOP_TEXT     40A  O 26 92DSPATR(HI)
+     A          R MSG_SFL                   SFL
+     A                                      SFLMSGRCD(27)
+     A            @MSGKEY                   SFLMSGKEY
+     A            @PROGRAM                  SFLPGMQ
+     A
+     A          R MSG_CTL                   SFLCTL(MSG_SFL)
+     A                                      SFLSIZ(0010)
+     A                                      SFLPAG(0001)
+     A                                      OVERLAY
+     A                                      SFLDSP
+     A                                      SFLDSPCTL
+     A                                      SFLINZ
+     A N99                                  SFLEND
+     A            @PROGRAM                  SFLPGMQ(10)

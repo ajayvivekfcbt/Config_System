@@ -1,0 +1,109 @@
+     H OPTION(*SRCSTMT : *NODEBUGIO) CVTOPT(*NODATETIME) ALWNULL(*USRCTL)
+     H DFTACTGRP(*NO) ACTGRP(*CALLER) BNDDIR('QC2LE' : 'UTBIND')
+      // -------------------------------------------------------------------------------------------
+      //
+      // Program  : UT2081 - Stage Remote Configuration Scope Resolution Methods
+      // Project  : Infrastructure - Configuration
+      // Author.  : G.Neale                          Date. . : 11/25/2011
+      //
+      // Narrative: Create and load UTCFGSRM from remote system
+      //
+      // -------------------------------------------------------------------------------------------
+      // Modification History:
+      //--------------------------------------------------------------------------------------------
+      //
+      // -------------------------------------------------------------------------------------------
+
+      /Copy QCPYSRC,PGSDS
+
+      *--------------------------------------------------------------------
+      * Define entry prototype and procedure interface
+      *--------------------------------------------------------------------
+     D EntryParms      PR                  EXTPGM('UT2081')
+     D                               20A                                        Remote Server
+
+     D EntryParms      PI
+     D   @Remote                     20A                                        Remote Server
+
+      /Copy QCPYSRC,UTBIND_PR
+
+      *--------------------------------------------------------------------
+      * Define variables
+      *--------------------------------------------------------------------
+     D  @MsgID         S              7A
+     D  @Local         S             20A                                        Local Server
+
+     D  Srm_ID         S              9B 0
+     D  Srm_Name       S             20A
+     D  Srm_Desc       S             50A
+     D  Srm_Info       S           2048A
+
+     **********************************************************************
+     **        M A I N L I N E    C O N T R O L    S E C T I O N
+     **********************************************************************
+      /FREE
+
+       // Set current server name
+
+        Exec Sql
+           Select   Current Server
+           Into     :@Local
+           From     Sysibm/SysDummy1;
+
+       // Drop local temp table
+
+       EXEC SQL SET CONNECTION :@Local;
+
+       Exec SQL Drop Table QTEMP/TEMP_SRM;
+
+       // Create local temp table
+
+       Exec SQL Create Table QTEMP/TEMP_SRM Like UTCFGSRM;
+
+       // Create SQL package prior to execution
+
+       RunCommand('CRTSQLPKG PGM(' + %trim(#PS.ProgramName) +
+                    ') RDB(' + %trim(@Remote) + ')');
+
+       // Define and open cursor
+
+       EXEC SQL DECLARE RemoteTable CURSOR FOR
+          SELECT   SRM_ID,
+                   SRM_NAME,
+                   SRM_DESC,
+                   TRIM(SRM_INFO)
+           FROM    UTCFGSRM;
+
+       EXEC SQL OPEN RemoteTable;
+
+       Dou SQLCod <> *zero;
+          EXEC SQL FETCH RemoteTable
+                   INTO :Srm_ID, :Srm_Name, :Srm_Desc, :Srm_Info;
+          If SQLCod = *zero;
+             EXEC SQL SET CONNECTION :@Local;
+             Exec SQL
+                Insert   into TEMP_SRM
+                Values   (
+                         :Srm_ID,
+                         :Srm_Name,
+                         :Srm_Desc,
+                         TRIM(:Srm_Info));
+              EXEC SQL SET CONNECTION :@Remote;
+           Endif;
+       Enddo;
+
+       EXEC SQL CLOSE RemoteTable;
+
+       // Disconnect from FCB and repoint to DEV
+
+       EXEC SQL DISCONNECT :@Remote;
+       EXEC SQL SET CONNECTION :@Local;
+       If  SQLCOD = -843;
+           EXEC SQL CONNECT RESET;
+       Endif;
+
+       // End of program
+
+       *INLR = *On;
+
+      /end-free

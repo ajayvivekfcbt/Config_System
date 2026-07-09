@@ -1,0 +1,3 @@
+﻿CONFIGURATION_SERVER_IDENTITY,CONFIGURATION_SERVER_NAME,CONFIGURATION_SERVER_DESCRIPTION,CONFIGURATION_SERVER_MATCH_VALUE,CONFIGURATION_SERVER_INFORMATION
+"3","FCB                 ","iSeries Production Box                            ","FCB",""
+"2","DEV                 ","iSeries Development Box                           ","DEV","iSeries Development Server"

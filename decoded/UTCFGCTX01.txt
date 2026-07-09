@@ -1,0 +1,23 @@
+----------------------------------------------------------------------
+-- DDL Generated 2010-12-03-07.58.34.959000 by job 954044/U4142GJN/U4142GJN_1
+--
+-- Model  . . : Utility Functions     UT Utility Functions and Tables
+-- Version  . : 1.01 - Development - Current
+-- Table  . . : UTCFGCTX              Configuration Context Definitions
+-- Index  . . : UTCFGCTX01            UTCFGCTX by Context Value
+--
+-- Create Options: Generate Drops:   NO
+--                 Generate Creates: YES
+--                 Target SQL:       iSeries DB2
+----------------------------------------------------------------------
+
+Create Unique Index UTCFGCTX01 on UTCFGCTX (
+    CTX_NAME Asc,
+    CTX_ID Asc);
+
+Label on Index UTCFGCTX01 is
+        'UTCFGCTX by Context Value';
+
+Rename Index UTCFGCTX01
+    To CONFIGURATION_CONTEXT_DEFINITIONS_IDX_01
+    For System Name UTCFGCTX01;

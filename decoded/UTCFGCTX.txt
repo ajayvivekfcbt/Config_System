@@ -1,0 +1,58 @@
+----------------------------------------------------------------------
+-- DDL Generated 2011-03-01-11.55.27.994000 by job 026731/U4142GJN/U4142GJN_2
+--
+-- Model  . . : Utility Functions     UT Utility Functions and Tables
+-- Version  . : 1.01 - Development - Current
+-- Table  . . : UTCFGCTX              Configuration Context Definitions
+--
+-- Create Options: Generate Drops:   NO
+--                 Generate Creates: YES
+--                 Target SQL:       iSeries DB2
+----------------------------------------------------------------------
+
+Create Table  UTCFGCTX (
+    CONFIGURATION_CONTEXT_IDENTITY For Column CTX_ID
+        INT Not Null,
+    CONFIGURATION_CONTEXT_NAME For Column CTX_NAME
+        CHAR(20) Not Null,
+    CONFIGURATION_CONTEXT_DESCRIPTION For Column CTX_DESC
+        CHAR(50) Not Null,
+    CONFIGURATION_CONTEXT_IS_SERVER_FLAG For Column CTX_IS_SRV
+        DECIMAL(1,0) Not Null,
+    CONFIGURATION_CONTEXT_INFORMATION For Column CTX_INFO
+        VARCHAR(2048) Not Null,
+    Constraint CONFIGURATION_CONTEXT_DEFINITIONS_CST_PK
+        Primary Key (
+        CTX_ID))
+
+    RCDFMT RUTCFGCTX;
+
+Label on Table UTCFGCTX is 'Configuration Context Definitions';
+
+Label On Column UTCFGCTX (
+    CONFIGURATION_CONTEXT_IDENTITY Is
+        'Configuration       Context             Identity            ',
+    CONFIGURATION_CONTEXT_NAME Is
+        'Configuration       Context             Name                ',
+    CONFIGURATION_CONTEXT_DESCRIPTION Is
+        'Configuration       Context             Description         ',
+    CONFIGURATION_CONTEXT_IS_SERVER_FLAG Is
+        'Configuration       Context is          Server Flag         ',
+    CONFIGURATION_CONTEXT_INFORMATION Is
+        'Configuration       Context             Information         ');
+
+Label On Column UTCFGCTX (
+    CONFIGURATION_CONTEXT_IDENTITY Text Is
+        'Configuration Context Identity                    ',
+    CONFIGURATION_CONTEXT_NAME Text Is
+        'Configuration Context Name                        ',
+    CONFIGURATION_CONTEXT_DESCRIPTION Text Is
+        'Configuration Context Description                 ',
+    CONFIGURATION_CONTEXT_IS_SERVER_FLAG Text Is
+        'Configuration Context is Server Flag              ',
+    CONFIGURATION_CONTEXT_INFORMATION Text Is
+        'Configuration Context Information                 ');
+
+Rename Table UTCFGCTX
+    To CONFIGURATION_CONTEXT_DEFINITIONS
+    For System Name UTCFGCTX;

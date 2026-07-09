@@ -1,0 +1,213 @@
+     H OPTION(*SRCSTMT : *NODEBUGIO) CVTOPT(*NODATETIME) ALWNULL(*USRCTL)
+     H DFTACTGRP(*NO) ACTGRP(*CALLER) BNDDIR('QC2LE' : 'UTBIND' : 'UTCFG')
+     H USRPRF(*OWNER)
+
+      // -------------------------------------------------------------------------------------------
+      //
+      // Program  : UT2090 - UT Config: Maintenance Audit Report
+      // Project  : Infrastructure - Configuration
+      // Author.  : J.Ellis                          Date. . : 06/09/2011
+      //
+      // Narrative: Provide a listing of logged maintenance and password reads from UTCFGAUD within
+      //            input date range.
+      //
+      // -------------------------------------------------------------------------------------------
+      // Modification History:
+      //--------------------------------------------------------------------------------------------
+      //   9/11/2012   J.Ellis   ChangeRequest: 3507  J.Sedberry
+      //               - Created
+      // -------------------------------------------------------------------------------------------
+
+     FUT2090P   O    E             Printer OflInd(iOverFlow)
+     F                                     InfDS(U2090)
+
+     // Entry Parameters
+     D EntryParms      Pr                  EXTPGM('UT2090R')
+     D                                 D   DatFmt(*ISO) Const                   Date Range From
+     D                                 D   DatFmt(*ISO) Const                   Date Range To
+
+     D EntryParms      Pi
+     D   In_DateFrom                   D   DatFmt(*ISO) Const                   Date Range From
+     D   In_DateTo                     D   DatFmt(*ISO) Const                   Date Range To
+
+     // SQL Receiver
+     D DS_UTCFGAUD   E Ds                  ExtName(UTCFGAUD) Inz
+     D  Rec_Key                     580    Overlay(DS_UTCFGAUD:1)
+
+     // Work Fields
+     D @SuppressFill   S             10    Inz('{********}')
+     D Last_Key        S            580    Inz(*Blank)
+     D @Event_Count    S              7  0 Inz
+     D @Event_Fields   S              7  0 Inz
+     D iSecured        S               n   Inz(*Off)
+
+     // Printer file output position feedback and overflow lines
+     D U2090           Ds
+     D   Line#               367    368B 0
+     D   Page#               369    372B 0
+
+      /Copy QCPYSRC,UTCFG_PR
+      /Copy QCPYSRC,UTBIND_PR
+
+      /Free
+       //******************************************************************************************
+       //  Main Processing
+       //******************************************************************************************
+
+       //Force overflow on and fill heading fields
+       iOverflow = *On;
+       @DateFrom = %Char(In_DateFrom:*USA);
+       @DateTo   = %Char(In_DateTo:*USA);
+       @Event_Count  = *Zero;
+       @Event_Fields = *Zero;
+
+       //Define cursor for audit log retrieval
+       Exec SQL Declare Report_Cursor Cursor for
+          Select   *
+          From     UTCFGAUD
+          Where    Date(AUD_LOGGED) between :In_DateFrom and :In_DateTo;
+
+       //Open cursor to target
+       Exec SQL Open Report_Cursor;
+
+       //Perform fetch until done
+       Dou SQLCod <> *Zero;
+
+           Exec SQL Fetch Report_Cursor Into :DS_UTCFGAUD;
+
+           If SQLCod = *Zero;
+
+               //New Event Group - Output event line 1
+               If Last_Key <> Rec_Key;
+
+                   If iOverflow or Line# > 56;
+                       Write Heading;
+                       iOverflow = *Off;
+                   Else;
+                       Write Blankline;
+                   Endif;
+
+                   @DATE = %Char(%Date(Aud_Logged):*USA);
+                   @TIME = %Char(%Time(Aud_Logged):*HMS);
+                   @USERID = AUD_USERID;
+                   @ACTION = AUD_ACTION;
+                   @TABLE = AUD_TABLE;
+                   @DESC = 'Key Value:';
+                   @VALUE = %Subst(AUD_KEYVAL:1:%Len(AUD_KEYVAL));
+
+                   *In10 = *On;
+                   Write Detail;
+                   *In10 = *Off;
+
+                   Last_Key = Rec_Key;
+
+                   @Event_Count += 1;
+
+               Endif;
+
+               //Output field information
+               @Event_Fields += 1;
+               Exsr $Check_Secured_Field;
+
+               @DESC = '....Field:';
+               Clear @VALUE;
+               @VALUE = %Subst(AUD_FIELD:1:10);
+               %Subst(@VALUE:13:50) = AUD_FDESC;
+
+               If iOverflow;
+                   Write Heading;
+                   iOverflow = *Off;
+                   *In10 = *On;
+               Endif;
+
+               Write Detail;
+               *In10 = *Off;
+
+               //Output before on change and delete
+               If AUD_ACTION = 'CHANGE' or AUD_ACTION = 'DELETE';
+                   @DESC = '   Before:';
+                   @VALUE = AUD_BEFORE;
+                   If iSecured and @Value <> *Blanks and
+                      AUD_FIELD = 'VAL_VARVAL';
+                       @VALUE = @SuppressFill;
+                   Endif;
+                   Write Detail;
+               Endif;
+
+               //Output after on insert and change
+               If AUD_ACTION = 'INSERT' or AUD_ACTION = 'CHANGE';
+                   @DESC = '    After:';
+                   @VALUE = AUD_AFTER;
+                   If iSecured and @Value <> *Blanks and
+                      AUD_FIELD = 'VAL_VARVAL';
+                       @VALUE = @SuppressFill;
+                   Endif;
+                   Write Detail;
+               Endif;
+
+               //Output for secured password reads
+               If AUD_ACTION = 'READ';
+                   @DESC = '   Viewed:';
+                   @VALUE = AUD_BEFORE;
+                   Write Detail;
+               Endif;
+
+               //Output before/after on unidentified
+               If AUD_ACTION <> 'INSERT' and AUD_ACTION <> 'DELETE' and
+                  AUD_ACTION <> 'CHANGE' and AUD_ACTION <> 'READ';
+                   @DESC = '   Before:';
+                   @VALUE = AUD_BEFORE;
+                   If iSecured and @Value <> *Blanks and
+                      AUD_FIELD = 'VAL_VARVAL';
+                       @VALUE = @SuppressFill;
+                   Endif;
+                   Write Detail;
+                   @DESC = '    After:';
+                   @VALUE = AUD_AFTER;
+                   If iSecured and @Value <> *Blanks and
+                      AUD_FIELD = 'VAL_VARVAL';
+                       @VALUE = @SuppressFill;
+                   Endif;
+                   Write Detail;
+               Endif;
+
+           Endif;
+       Enddo;
+
+       Exec SQL Close Report_Cursor;
+
+       //End of program
+       @EVENTS = @Event_Count;
+       @FIELDS = @Event_Fields;
+
+       If iOverflow;
+           Write Heading;
+       Endif;
+
+       Write EOJ;
+
+       *InLR = *On;
+
+       //******************************************************************************************
+       //  Check for Password Related Field
+       //******************************************************************************************
+
+       Begsr $Check_Secured_Field;
+
+         iSecured = *Off;
+
+         If AUD_ACTION <> 'READ';
+
+             If (%Scan('PASS': Uppercase(AUD_KEYVAL)) > *Zero or
+                 %Scan('KEY': Uppercase(AUD_KEYVAL)) > *Zero )
+                   or
+                (%Scan('PASS': Uppercase(AUD_FDESC)) > *Zero or
+                 %Scan('KEY': Uppercase(AUD_FDESC)) > *Zero ) ;
+
+                 iSecured = *On;
+
+             Endif;
+
+         Endif;
+
+       Endsr;

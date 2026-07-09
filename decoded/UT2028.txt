@@ -1,0 +1,302 @@
+     H OPTION(*SRCSTMT : *NODEBUGIO) CVTOPT(*NODATETIME) ALWNULL(*USRCTL)
+     H DFTACTGRP(*NO) ACTGRP(*CALLER)
+     H BNDDIR('QC2LE' : 'UTBIND' : 'UTCFG')
+      // -------------------------------------------------------------------------------------------
+      //
+      // Program  : UT2028 - Single Row Maintenance for UTCFGVAL - Variable Value
+      // Project  : Infrastructure - Configuration
+      // Author.  : G.Neale                          Date. . : 02/24/2011
+      //
+      // Narrative: Single Row Maintenance Functionality for UTCFGVAL file
+      //
+      // -------------------------------------------------------------------------------------------
+      // Modification History:
+      //--------------------------------------------------------------------------------------------
+jse1  //   6/12/2012   J.Ellis   ChangeRequest: 3403 Sec/Audit Config Utility
+      //               Added audit trail output to show access to password type variables.
+      //
+      // -------------------------------------------------------------------------------------------
+     FUT2028D   CF   E             WORKSTN INFDS(#WS)
+
+      *--------------------------------------------------------------------
+      * Define entry prototype and procedure interface
+      *--------------------------------------------------------------------
+     D EntryParms      PR                  EXTPGM('UT2028')
+     D                                9B 0 const                                Scope ID
+     D                                9B 0 const                                Variable Def ID
+     D                                2S 0 const                                Option Number
+     D                                9B 0 const                                Value ID
+     D                                1A                                        End FKey
+
+     D EntryParms      PI
+     D   @ScopeID                     9B 0 const                                Scope ID
+     D   @VarDefID                    9B 0 const                                Variable Def ID
+     D   @Option                      2S 0 const                                Option Number
+     D   @ValueID                     9B 0 const                                Value ID
+     D   @EndFKey                     1A                                        End FKey
+
+      /Copy QCPYSRC,UTCFG_PR
+
+      *--------------------------------------------------------------------
+      * Define database work structure
+      *--------------------------------------------------------------------
+     D @DB           E DS                  ExtName(UTCFGVAL) INZ
+     D @VDF          E DS                  ExtName(UTCFGVDF) INZ Qualified
+     D @VTP          E DS                  ExtName(UTCFGVTP) INZ Qualified
+
+      *--------------------------------------------------------------------
+      * Define prototypes
+      *--------------------------------------------------------------------
+     D PromptValidValue...
+     D                 PR                  EXTPGM('UT2037')
+     D                                9B 0 Const                                Parent ID
+     D                                9B 0                                      Row ID
+
+      *--------------------------------------------------------------------
+      * Define specific variables
+      *--------------------------------------------------------------------
+     D @ReturnID       S              9B 0
+     D @ProcName       S            128A
+
+jse1 D @Audit_Key      ds
+jse1 D   @Server                     20
+jse1 D   @Scope                      20
+jse1 D   @Context                    20
+jse1 D   @Extent                     20
+jse1 D   @Variable                   50
+jse1 D   @Key_Value                 512
+
+      /Copy QCPYSRC,UTCOM_RM
+      /FREE
+
+       //--------------------------------------------------------------------
+
+       Begsr $One_Row_Edit;
+
+       // Reset error conditions
+
+           Clear @ErrorMsg;
+
+       // Left justify all alpha fields
+
+           @Value     = TrimAndCheck(%trimr(@Value    ) : *IN95);
+
+       // Validity check value entered
+
+           If @ErrorMsg = *blank and
+              @Vdf.Vdf_Rstrct = 1 and
+               @Value <> *blank;
+               If ConfigVarValidID(@VarDefID : @Value) = *zero;
+                   @ErrorMsg = 'Value entered does not match the allowed ' +
+                               'list of values - Press F4 for list';
+               Else;
+                   @Value = ConfigVarValidName(
+                                ConfigVarValidID(@VarDefID : @Value));
+               Endif;
+           Endif;
+
+       // Validity check value using defined procedure
+
+           If @ErrorMsg = *blank and
+              @Vdf.Vdf_Rstrct = 1 and
+               @Value <> *blank and
+               @ProcName <> *Blank;
+               Exsr $Validate_One_Value;
+           Endif;
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+
+       Begsr $Validate_One_Value;
+
+       // Validate input value based on procedure name defined
+
+           If @ProcName = 'VALIDIPV4ADDRESS' and
+              not ValidIPV4Address(@Value) or
+              @ProcName = 'VALIDISODATE' and
+              not ValidISODate(@Value) or
+              @ProcName = 'VALIDISOTIMESTAMP' and
+              not ValidISOTimestamp(@Value) or
+              @ProcName = 'VALIDMONTHNUMBER' and
+              not ValidMonthNumber(@Value) or
+              @ProcName = 'VALIDDAYNUMBER' and
+              not ValidDayNumber(@Value) or
+              @ProcName = 'VALIDYEARNUMBER' and
+              not ValidYearNumber(@Value) or
+              @ProcName = 'VALIDBASICINAME' and
+              not ValidBasiciName(@Value) or
+              @ProcName = 'VALIDSIMPLEINAME' and
+              not ValidSimpleiName(@Value) or
+              @ProcName = 'VALIDCOMMINAME' and
+              not ValidCommiName(@Value) or
+              @ProcName = 'VALIDBIGINTEGER' and
+              not ValidBigInteger(@Value) or
+              @ProcName = 'VALIDINTEGER' and
+              not ValidInteger(@Value) or
+              @ProcName = 'VALIDSMALLINTEGER' and
+              not ValidSmallInteger(@Value) or
+              @ProcName = 'VALIDDB2TINYINT' and
+              not ValidDB2TinyInt(@Value) or
+              @ProcName = 'VALIDMSSQLTINYINT' and
+              not ValidMSSQLTinyInt(@Value) or
+              @ProcName = 'VALIDCURRENCY' and
+              ValidCurrency(@Value) or
+              @ProcName = 'VALIDEMAILADDRESS' and
+              ValidEmailAddress(@Value) or
+              @ProcName = 'VALIDYESNO' and
+              ValidYesNo(@Value) or
+              @ProcName = 'VALIDINDICATOR' and
+              Validindicator(@Value);
+
+              @ErrorMsg = 'Value entered is invalid for defined ' +
+                          'standard data typing';
+
+           Endif;
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+
+       Begsr $One_Row_Update;
+
+       // Load screen values to database values
+
+           Vdf_ID = @VarDefID;
+           Scp_ID = @ScopeID;
+           Val_VarVal = %trim(@Value);
+
+       // Execute method appropriate for action
+
+           If @ValueID = *zero and @Value <> *blank;
+               ConfigVariableInsert(@DB);
+           ElseIf @ValueID <> *zero and @Value <> *blank;
+               ConfigVariableUpdate(@DB);
+           ElseIf @ValueID <> *zero and @Value = *blank;
+               ConfigVariableDelete(@DB);
+           Endif;
+
+       Endsr;
+    
+       //---------------------------------------------------------------------
+
+       Begsr $Prompt;
+
+       // check for prompt on field where cursor is positioned
+
+           If @PromptFld = '@VALUE';
+               PromptValidValue(@VarDefID : @ReturnID);
+               If  @ReturnID <> *zero;
+                   @Value = ConfigVarValidName(@ReturnID);
+               Endif;
+           Else;
+               @ErrorMsg = 'Prompt function not supported or defined ' +
+                           'at current cursor position';
+           Endif;
+
+       Endsr;
+    
+       //--------------------------------------------------------------------
+    
+       Begsr $Check_Function_Key_Requests;
+
+       Endsr;
+
+       //--------------------------------------------------------------------
+
+       Begsr $Data_Initialization;
+
+       // If @Id received - get row
+
+           If @ValueId <> *Zero;
+              @DB = ConfigVariableGet(@ValueID);
+           Endif;
+
+       // Always get Variable definition row & Variable type row
+
+           @VDF = ConfigVarDefGet(@VarDefID);
+           Vtp_Name = ConfigVarTypeName(@Vdf.Vtp_ID);
+           Vtp_Desc = ConfigVarTypeDesc(@Vdf.Vtp_ID);
+
+           @VTP = ConfigVarTypeGet(@Vdf.Vtp_ID);
+           @ProcName = UpperCase(@Vtp.Vtp_Proc);
+
+
+       // Set tables and rights required
+
+           @TableNames(1)  = 'UTCFGVAL';
+           @TableRights(1) = 'CRUD';
+
+       // Set valid function keys
+
+           @AvlFnc(3)  = 'F3=Exit';
+           @AvlFnc(5)  = 'F5=Refresh';
+           @AvlFnc(12) = 'F12=Cancel';
+           If @Vdf.Vdf_Rstrct = 1 and
+              @Option = 2;
+              @AvlFnc(4) = 'F4=Prompt';
+           Endif;
+
+       // Translate stored into displayed values
+
+           @Value = %trim(Val_VarVal);
+
+       // Set header values
+
+           @Srv_Title = ConfigServerTitle(
+                            ConfigScopeParent(@ScopeID));
+           @Scp_Title = ConfigScopeTitle(@ScopeID);
+           @Ctx_Title = ConfigContextTitle(
+                            ConfigExtentParent(
+                            ConfigVarDefParent(@VarDefID)));
+           @Xtn_Title = ConfigExtentTitle(
+                            ConfigVarDefParent(@VarDefID));
+           @Vdf_Title = ConfigVarDefTitle(@VarDefID);
+
+       // Set refresh flag off
+
+           @Refresh = *off;
+
+jse1   // Check if password variable, and if value is present, write audit for access
+jse1   // if value is not blank
+jse1
+jse1       If (%Scan('PASS': Uppercase(@Vdf_Title)) > *zero or
+jse1           %Scan('KEY': Uppercase(@Vdf_Title)) > *zero ) and
+jse1          @Value <> *blanks ;
+jse1
+jse1           Clear @Audit_Key;
+jse1
+jse1           Exec SQL
+jse1               Select Vdf.Vdf_Name, Xtn.Xtn_Name, Ctx.Ctx_Name,
+jse1                      Scp.Scp_Name, Srv.Srv_Name
+jse1               Into   :@Variable, :@Extent, :@Context, :@Scope, :@Server
+jse1               From   UTCFGVAL Val
+jse1                      Join UTCFGVDF Vdf on Val.Vdf_ID = Vdf.Vdf_ID
+jse1                      Join UTCFGXTN Xtn on Vdf.Xtn_ID = Xtn.Xtn_ID
+jse1                      Join UTCFGCTX Ctx on Xtn.Ctx_ID = Ctx.Ctx_ID
+jse1                      Join UTCFGSCP Scp on Val.Scp_ID = Scp.Scp_ID
+jse1                      Join UTCFGSRV Srv on Scp.Srv_ID = Srv.Srv_ID
+jse1               Where  Val.Val_ID = :@ValueID ;
+jse1
+jse1           @Key_Value = %Trim(@Server) + '/' + %Trim(@Scope) + '/' +
+jse1                        %Trim(@Context) + '/' + %Trim(@Extent) + '/' +
+jse1                        %Trim(@Variable);
+jse1
+jse1           Exec SQL
+jse1               Insert Into UTCFGAUD
+jse1               Values( Now(),
+jse1                       :#PS.ProgramName,
+jse1                       :#PS.CurrentUserProfile,
+jse1                       'READ',
+jse1                       'UTCFGVAL',
+jse1                       Trim(:@Key_Value),
+jse1                       'VAL_VARVAL',
+jse1                       Trim('User view of Password Variable value'),
+jse1                       Trim(:@Vdf_Title),
+jse1                       ' '   );
+jse1
+jse1       Endif;
+
+       Endsr;
+    
+       //--------------------------------------------------------------------

@@ -1,0 +1,124 @@
+Using launch settings from C:\Users\apillai0418\Desktop\Config_System\backend\ConfigSystem.Api\Properties\launchSettings.json...
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (9ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      PRAGMA journal_mode = 'wal';
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE TABLE "UTCFGCTX" (
+          "Id" INTEGER NOT NULL CONSTRAINT "PK_UTCFGCTX" PRIMARY KEY AUTOINCREMENT,
+          "Name" TEXT NOT NULL,
+          "Description" TEXT NOT NULL,
+          "IsServer" INTEGER NOT NULL,
+          "Information" TEXT NOT NULL
+      );
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE TABLE "UTCFGSRM" (
+          "Id" INTEGER NOT NULL CONSTRAINT "PK_UTCFGSRM" PRIMARY KEY AUTOINCREMENT,
+          "Name" TEXT NOT NULL,
+          "Description" TEXT NOT NULL,
+          "Information" TEXT NOT NULL
+      );
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE TABLE "UTCFGSRV" (
+          "Id" INTEGER NOT NULL CONSTRAINT "PK_UTCFGSRV" PRIMARY KEY AUTOINCREMENT,
+          "Name" TEXT NOT NULL,
+          "Description" TEXT NOT NULL,
+          "MatchValue" TEXT NOT NULL,
+          "Information" TEXT NOT NULL
+      );
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE TABLE "UTCFGVTP" (
+          "Id" INTEGER NOT NULL CONSTRAINT "PK_UTCFGVTP" PRIMARY KEY AUTOINCREMENT,
+          "Name" TEXT NOT NULL,
+          "Description" TEXT NOT NULL,
+          "ValidationProcedure" TEXT NOT NULL,
+          "Information" TEXT NOT NULL
+      );
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE TABLE "UTCFGXTN" (
+          "Id" INTEGER NOT NULL CONSTRAINT "PK_UTCFGXTN" PRIMARY KEY AUTOINCREMENT,
+          "ContextId" INTEGER NOT NULL,
+          "Name" TEXT NOT NULL,
+          "Description" TEXT NOT NULL,
+          "Information" TEXT NOT NULL,
+          CONSTRAINT "FK_UTCFGXTN_UTCFGCTX_ContextId" FOREIGN KEY ("ContextId") REFERENCES "UTCFGCTX" ("Id") ON DELETE RESTRICT
+      );
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE TABLE "UTCFGSCP" (
+          "Id" INTEGER NOT NULL CONSTRAINT "PK_UTCFGSCP" PRIMARY KEY AUTOINCREMENT,
+          "ServerId" INTEGER NOT NULL,
+          "ScopeResolutionMethodId" INTEGER NOT NULL,
+          "Name" TEXT NOT NULL,
+          "Description" TEXT NOT NULL,
+          "IsServer" INTEGER NOT NULL,
+          "MatchValue" TEXT NOT NULL,
+          "Information" TEXT NOT NULL,
+          CONSTRAINT "FK_UTCFGSCP_UTCFGSRM_ScopeResolutionMethodId" FOREIGN KEY ("ScopeResolutionMethodId") REFERENCES "UTCFGSRM" ("Id") ON DELETE RESTRICT,
+          CONSTRAINT "FK_UTCFGSCP_UTCFGSRV_ServerId" FOREIGN KEY ("ServerId") REFERENCES "UTCFGSRV" ("Id") ON DELETE RESTRICT
+      );
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE TABLE "UTCFGVDF" (
+          "Id" INTEGER NOT NULL CONSTRAINT "PK_UTCFGVDF" PRIMARY KEY AUTOINCREMENT,
+          "ExtentId" INTEGER NOT NULL,
+          "VariableTypeId" INTEGER NOT NULL,
+          "Name" TEXT NOT NULL,
+          "Description" TEXT NOT NULL,
+          "ValuesAreRestricted" INTEGER NOT NULL,
+          "Information" TEXT NOT NULL,
+          CONSTRAINT "FK_UTCFGVDF_UTCFGVTP_VariableTypeId" FOREIGN KEY ("VariableTypeId") REFERENCES "UTCFGVTP" ("Id") ON DELETE RESTRICT,
+          CONSTRAINT "FK_UTCFGVDF_UTCFGXTN_ExtentId" FOREIGN KEY ("ExtentId") REFERENCES "UTCFGXTN" ("Id") ON DELETE RESTRICT
+      );
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE TABLE "UTCFGVAL" (
+          "Id" INTEGER NOT NULL CONSTRAINT "PK_UTCFGVAL" PRIMARY KEY AUTOINCREMENT,
+          "VariableDefinitionId" INTEGER NOT NULL,
+          "ScopeId" INTEGER NOT NULL,
+          "Value" TEXT NOT NULL,
+          CONSTRAINT "FK_UTCFGVAL_UTCFGSCP_ScopeId" FOREIGN KEY ("ScopeId") REFERENCES "UTCFGSCP" ("Id") ON DELETE RESTRICT,
+          CONSTRAINT "FK_UTCFGVAL_UTCFGVDF_VariableDefinitionId" FOREIGN KEY ("VariableDefinitionId") REFERENCES "UTCFGVDF" ("Id") ON DELETE RESTRICT
+      );
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE TABLE "UTCFGVVL" (
+          "Id" INTEGER NOT NULL CONSTRAINT "PK_UTCFGVVL" PRIMARY KEY AUTOINCREMENT,
+          "VariableDefinitionId" INTEGER NOT NULL,
+          "Value" TEXT NOT NULL,
+          "Description" TEXT NOT NULL,
+          "Information" TEXT NOT NULL,
+          CONSTRAINT "FK_UTCFGVVL_UTCFGVDF_VariableDefinitionId" FOREIGN KEY ("VariableDefinitionId") REFERENCES "UTCFGVDF" ("Id") ON DELETE CASCADE
+      );
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE INDEX "IX_UTCFGSCP_ScopeResolutionMethodId" ON "UTCFGSCP" ("ScopeResolutionMethodId");
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE INDEX "IX_UTCFGSCP_ServerId" ON "UTCFGSCP" ("ServerId");
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE INDEX "IX_UTCFGVAL_ScopeId" ON "UTCFGVAL" ("ScopeId");
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE INDEX "IX_UTCFGVAL_VariableDefinitionId" ON "UTCFGVAL" ("VariableDefinitionId");
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE INDEX "IX_UTCFGVDF_ExtentId" ON "UTCFGVDF" ("ExtentId");
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE INDEX "IX_UTCFGVDF_VariableTypeId" ON "UTCFGVDF" ("VariableTypeId");
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE INDEX "IX_UTCFGVVL_VariableDefinitionId" ON "UTCFGVVL" ("VariableDefinitionId");
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE INDEX "IX_UTCFGXTN_ContextId" ON "UTCFGXTN" ("ContextId");
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT COUNT(*)
+      FROM "UTCFGVAL" AS "u"
