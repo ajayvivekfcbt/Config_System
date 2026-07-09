@@ -20,6 +20,21 @@ export function isReadOnly(): boolean {
   return currentSource === "FCB";
 }
 
+// Signed-in credentials kept in memory only (never persisted) so on-demand FCB
+// staging can connect to the AS/400 as the logged-in user.
+let authUserId: string | null = sessionStorage.getItem("uid");
+let authPassword: string | null = null;
+
+export function setAuth(userId: string, password: string) {
+  authUserId = userId;
+  authPassword = password;
+}
+
+export function clearAuth() {
+  authUserId = null;
+  authPassword = null;
+}
+
 async function http<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${url}`, {
     method,
@@ -41,17 +56,24 @@ export const api = {
   remove: (route: string, id: number) => http<void>("DELETE", `/${route}/${id}`),
   login: (userId: string, password: string) =>
     http<{ userId: string }>("POST", `/login`, { userId, password }),
-  resolve: (variable: string, server: string, scope?: string) =>
+  refreshFcb: () =>
+    http<{ staged: boolean; error?: string }>("POST", `/fcb/refresh`, {
+      userId: authUserId,
+      password: authPassword,
+    }),
+  resolve: (variable: string, server: string, scope?: string, variableId?: number) =>
     http<ResolveResult>(
       "GET",
       `/resolve?variable=${encodeURIComponent(variable)}&server=${encodeURIComponent(server)}${
         scope ? `&scope=${encodeURIComponent(scope)}` : ""
-      }`
+      }${variableId != null ? `&variableId=${variableId}` : ""}`
     ),
-  resolveAll: (variable: string, server: string) =>
+  resolveAll: (variable: string, server: string, variableId?: number) =>
     http<ResolveResult[]>(
       "GET",
-      `/resolve-all?variable=${encodeURIComponent(variable)}&server=${encodeURIComponent(server)}`
+      `/resolve-all?variable=${encodeURIComponent(variable)}&server=${encodeURIComponent(server)}${
+        variableId != null ? `&variableId=${variableId}` : ""
+      }`
     ),
 };
 

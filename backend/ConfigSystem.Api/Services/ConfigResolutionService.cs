@@ -15,10 +15,11 @@ public class ConfigResolutionService
     private readonly ConfigDbContext _db;
     public ConfigResolutionService(ConfigDbContext db) => _db = db;
 
-    public async Task<ResolvedValue> ResolveAsync(string variableName, string? serverName, string? scopeName = null)
+    public async Task<ResolvedValue> ResolveAsync(string variableName, string? serverName, string? scopeName = null, int? variableId = null)
     {
-        var vdf = await _db.VariableDefinitions
-            .FirstOrDefaultAsync(v => v.Name == variableName);
+        var vdf = variableId is int vid
+            ? await _db.VariableDefinitions.FirstOrDefaultAsync(v => v.Id == vid)
+            : await _db.VariableDefinitions.FirstOrDefaultAsync(v => v.Name == variableName);
         if (vdf is null)
             return new ResolvedValue(variableName, serverName ?? scopeName ?? "", null, null, null, false);
 
@@ -63,10 +64,11 @@ public class ConfigResolutionService
     /// Returns EVERY candidate value for a variable (one per matching scope) instead of just the
     /// winning one. Used when no explicit scope override is chosen so the UI can show each match.
     /// </summary>
-    public async Task<List<ResolvedValue>> ResolveAllAsync(string variableName, string? serverName)
+    public async Task<List<ResolvedValue>> ResolveAllAsync(string variableName, string? serverName, int? variableId = null)
     {
-        var vdf = await _db.VariableDefinitions
-            .FirstOrDefaultAsync(v => v.Name == variableName);
+        var vdf = variableId is int vid
+            ? await _db.VariableDefinitions.FirstOrDefaultAsync(v => v.Id == vid)
+            : await _db.VariableDefinitions.FirstOrDefaultAsync(v => v.Name == variableName);
         if (vdf is null)
             return new List<ResolvedValue> { new ResolvedValue(variableName, serverName ?? "", null, null, null, false) };
 

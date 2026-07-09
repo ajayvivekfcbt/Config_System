@@ -37,9 +37,10 @@ foreach (var source in ConfigSource.Known)
     if (!DataImporter.ImportAll(db))
         SeedData.EnsureSeeded(db);
 
-    // The exported data only has DEV-server scopes/values. For the FCB source,
-    // clone them onto the FCB server so it resolves values of its own.
-    if (source == "Fcb")
+    // For the FCB source, seed the local DATCOMN production clone unless the FCB
+    // data has already been staged live from the AS/400. Staging is on-demand
+    // (see POST /api/fcb/refresh), not run on every startup.
+    if (source == "Fcb" && !Fcb400Stager.IsStaged(app.Configuration))
         FcbSeeder.EnsureFcbServerScopes(db);
 }
 
@@ -121,8 +122,8 @@ MapCrud<VariableValue>(app, "variable-values", db => db.VariableValues, (s, d) =
     { d.VariableDefinitionId = s.VariableDefinitionId; d.ScopeId = s.ScopeId; d.Value = s.Value; });
 
 // ---- Consumption / resolution endpoint (replaces UT2061-UT2087) ----
-app.MapGet("/api/resolve", async (string variable, string? server, string? scope, ConfigResolutionService svc) =>
-        Results.Ok(await svc.ResolveAsync(variable, server, scope)))
+app.MapGet("/api/resolve", async (string variable, string? server, string? scope, int? variableId, ConfigResolutionService svc) =>
+        Results.Ok(await svc.ResolveAsync(variable, server, scope, variableId)))
     .WithTags("resolution");
 
 // ---- Same resolution logic but accepting a JSON body instead of query-string params ----
@@ -130,13 +131,13 @@ app.MapPost("/api/resolve", async (ResolveRequest req, ConfigResolutionService s
     {
         if (string.IsNullOrWhiteSpace(req.Variable))
             return Results.BadRequest(new { error = "The 'variable' field is required." });
-        return Results.Ok(await svc.ResolveAsync(req.Variable, req.Server, req.Scope));
+        return Results.Ok(await svc.ResolveAsync(req.Variable, req.Server, req.Scope, req.VariableId));
     })
     .WithTags("resolution");
 
 // ---- All candidate values (one per scope) when no explicit scope override is chosen ----
-app.MapGet("/api/resolve-all", async (string variable, string? server, ConfigResolutionService svc) =>
-        Results.Ok(await svc.ResolveAllAsync(variable, server)))
+app.MapGet("/api/resolve-all", async (string variable, string? server, int? variableId, ConfigResolutionService svc) =>
+        Results.Ok(await svc.ResolveAllAsync(variable, server, variableId)))
     .WithTags("resolution");
 
 // ---- AS/400 (IBM i) sign-in: validate the supplied user profile/password ----
@@ -148,7 +149,22 @@ app.MapPost("/api/login", (LoginRequest req, As400AuthService auth) =>
         : Results.Json(new { error = error ?? "Invalid credentials." }, statusCode: StatusCodes.Status401Unauthorized);
 }).WithTags("auth");
 
+// ---- On-demand staging: refresh the FCB source live from the FCB AS/400 ----
+app.MapPost("/api/fcb/refresh", (FcbRefreshRequest? req, HttpContext http, ConfigDbContext db, IConfiguration config, ILoggerFactory lf) =>
+{
+    if (ConfigSource.Resolve(http) != "Fcb")
+        return Results.BadRequest(new { error = "Switch to the FCB source to refresh from the AS/400." });
+    if (Fcb400Stager.TryStage(db, config, lf.CreateLogger("Fcb400Stager"), req?.UserId, req?.Password))
+    {
+        Fcb400Stager.MarkStaged(config);
+        return Results.Ok(new { staged = true });
+    }
+    return Results.Json(new { staged = false, error = "FCB AS/400 staging is not configured or failed." },
+        statusCode: StatusCodes.Status502BadGateway);
+}).WithTags("fcb");
+
 app.Run();
 
 record LoginRequest(string UserId, string Password);
-record ResolveRequest(string Variable, string? Server, string? Scope);
+record ResolveRequest(string Variable, string? Server, string? Scope, int? VariableId = null);
+record FcbRefreshRequest(string? UserId, string? Password);
