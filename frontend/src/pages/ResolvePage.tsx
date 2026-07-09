@@ -162,3 +162,6 @@ export default function ResolvePage() {
           <ResultCard result={results[0]} status={statuses?.[keyOf(results[0])]} />
         )
       )}
+    </div>
+  );
+}
