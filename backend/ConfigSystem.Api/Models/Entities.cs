@@ -120,3 +120,45 @@ public class VariableValue
     public Scope? Scope { get; set; }
     [MaxLength(128)] public string Value { get; set; } = "";      // VAL_VARVAL
 }
+
+// ============================================================================
+// GoAnywhere Configuration Management Models
+// ============================================================================
+
+/// <summary>
+/// GAPROJECT - GoAnywhere Project definitions
+/// References all GoAnywhere projects managed in the system
+/// </summary>
+public class GoAnywhereProject
+{
+    public int Id { get; set; }
+    [MaxLength(100)] public string Name { get; set; } = "";
+    [MaxLength(500)] public string Description { get; set; } = "";
+    [MaxLength(100)] public string? ProjectPath { get; set; }
+    public int? ContextId { get; set; }
+    public int? ExtentId { get; set; }
+    [MaxLength(50)] public string? ExtentName { get; set; }
+    public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+    public DateTime LastModifiedDate { get; set; } = DateTime.UtcNow;
+
+    public ICollection<GoAnywhereConfig> Configurations { get; set; } = new List<GoAnywhereConfig>();
+}
+
+/// <summary>
+/// GACONFIG - GoAnywhere Configuration values
+/// Stores configuration parameters for each GoAnywhere project by environment
+/// </summary>
+public class GoAnywhereConfig
+{
+    public int Id { get; set; }
+    public int ProjectId { get; set; }
+    public GoAnywhereProject? Project { get; set; }
+    [MaxLength(20)] public string Environment { get; set; } = "";  // DEV, TEST, PROD
+    [MaxLength(100)] public string ConfigKey { get; set; } = "";   // ProjectPath, GAProject, ParameterFile, etc.
+    [MaxLength(1000)] public string? ConfigValue { get; set; }
+    [MaxLength(500)] public string? Description { get; set; }
+    public bool IsRequired { get; set; }
+    public bool IsSensitive { get; set; }  // Flag for passwords/credentials
+    public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+    public DateTime LastModifiedDate { get; set; } = DateTime.UtcNow;
+}

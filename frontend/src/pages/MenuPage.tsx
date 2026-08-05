@@ -16,6 +16,11 @@ export default function MenuPage() {
             <span className="legacy">{e.legacy}</span>
           </Link>
         ))}
+        <Link to="/goanywhere" className="menu-card goanywhere-card">
+          <span className="opt">🚀</span>
+          <span className="title">GoAnywhere Configuration</span>
+          <span className="legacy">Project Management (26+ Projects)</span>
+        </Link>
         <Link to="/resolve" className="menu-card accent">
           <span className="opt">81</span>
           <span className="title">Resolve Value (Consumption)</span>

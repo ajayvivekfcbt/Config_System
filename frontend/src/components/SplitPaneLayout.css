@@ -1,0 +1,33 @@
+.split-pane-layout {
+  display: grid;
+  grid-template-columns: var(--left-width) 4px var(--right-width);
+  height: 100%;
+  width: 100%;
+  gap: 0;
+}
+
+.split-pane-left {
+  overflow: auto;
+  background-color: #f5f5f5;
+  border-right: 1px solid #ddd;
+}
+
+.split-pane-right {
+  overflow: auto;
+  background-color: #fff;
+}
+
+.split-pane-divider {
+  cursor: col-resize;
+  background-color: #ddd;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="4" height="20" viewBox="0 0 4 20"><circle cx="2" cy="10" r="1.5" fill="%23999"/></svg>');
+  background-position: center;
+  background-repeat: no-repeat;
+  user-select: none;
+  transition: background-color 0.2s ease;
+}
+
+.split-pane-divider:hover,
+.split-pane-divider.dragging {
+  background-color: #0078d4;
+}

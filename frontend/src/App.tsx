@@ -7,6 +7,7 @@ import ListPage from "./pages/ListPage";
 import EditPage from "./pages/EditPage";
 import ResolvePage from "./pages/ResolvePage";
 import LoginPage from "./pages/LoginPage";
+import GoAnywhereConfigPage from "./pages/GoAnywhereConfigPage";
 
 export default function App() {
   const loc = useLocation();
@@ -58,6 +59,9 @@ export default function App() {
           <Link className={loc.pathname === "/menu" ? "active" : ""} to="/menu">
             Menu
           </Link>
+          <Link className={loc.pathname === "/goanywhere" ? "active" : ""} to="/goanywhere">
+            GoAnywhere Config
+          </Link>
           {menuItems.map((e) => (
             <Link
               key={e.route}
@@ -95,6 +99,7 @@ export default function App() {
           <Route path="/" element={<ResolvePage />} />
           <Route path="/menu" element={<MenuPage />} />
           <Route path="/resolve" element={<ResolvePage />} />
+          <Route path="/goanywhere" element={<GoAnywhereConfigPage />} />
           <Route path="/:route" element={<ListPage />} />
           <Route path="/:route/new" element={<EditPage />} />
           <Route path="/:route/:id" element={<EditPage />} />

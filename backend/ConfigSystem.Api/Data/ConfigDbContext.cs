@@ -16,6 +16,10 @@ public class ConfigDbContext : DbContext
     public DbSet<VariableDefinition> VariableDefinitions => Set<VariableDefinition>();
     public DbSet<ValidValue> ValidValues => Set<ValidValue>();
     public DbSet<VariableValue> VariableValues => Set<VariableValue>();
+    
+    // GoAnywhere Configuration Management
+    public DbSet<GoAnywhereProject> GoAnywhereProjects => Set<GoAnywhereProject>();
+    public DbSet<GoAnywhereConfig> GoAnywhereConfigs => Set<GoAnywhereConfig>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -58,5 +62,19 @@ public class ConfigDbContext : DbContext
         b.Entity<VariableValue>()
             .HasOne(v => v.Scope).WithMany(s => s.VariableValues)
             .HasForeignKey(v => v.ScopeId).OnDelete(DeleteBehavior.Restrict);
+
+        // GoAnywhere Configuration tables
+        b.Entity<GoAnywhereProject>().ToTable("GAPROJECT");
+        b.Entity<GoAnywhereConfig>().ToTable("GACONFIG");
+
+        // GoAnywhere relationships
+        b.Entity<GoAnywhereConfig>()
+            .HasOne(c => c.Project).WithMany(p => p.Configurations)
+            .HasForeignKey(c => c.ProjectId).OnDelete(DeleteBehavior.Cascade);
+
+        // Unique constraint on (ProjectId, Environment, ConfigKey)
+        b.Entity<GoAnywhereConfig>()
+            .HasIndex(c => new { c.ProjectId, c.Environment, c.ConfigKey })
+            .IsUnique();
     }
 }

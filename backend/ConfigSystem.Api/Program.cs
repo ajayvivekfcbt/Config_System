@@ -6,6 +6,9 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddSession();
+builder.Services.AddControllers();
 
 // The active data source (Dev or FCB) is chosen per request via the
 // X-Config-Source header; each source maps to its own SQLite database.
@@ -25,28 +28,62 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
 
 var app = builder.Build();
 
-// Create and seed a database for every source (Dev and FCB) so switching
-// sources always lands on a ready-to-use store.
-foreach (var source in ConfigSource.Known)
+// Create and seed a database for every source (Dev and FCB)
+try
 {
-    var connectionString = ConfigSource.ConnectionString(app.Configuration, source);
-    var options = new DbContextOptionsBuilder<ConfigDbContext>().UseSqlite(connectionString).Options;
-    using var db = new ConfigDbContext(options);
-    db.Database.EnsureCreated();
-    // Prefer the real data exported from IBM i; fall back to the demo seed.
-    if (!DataImporter.ImportAll(db))
-        SeedData.EnsureSeeded(db);
+    Console.WriteLine("[STARTUP] Initializing databases...");
+    
+    foreach (var source in ConfigSource.Known)
+    {
+        try
+        {
+            Console.WriteLine($"[STARTUP] Processing source: {source}");
+            var connectionString = ConfigSource.ConnectionString(app.Configuration, source);
+            var options = new DbContextOptionsBuilder<ConfigDbContext>().UseSqlite(connectionString).Options;
+            using var db = new ConfigDbContext(options);
+            db.Database.EnsureCreated();
+            // Prefer the real data exported from IBM i; fall back to the demo seed.
+            if (!DataImporter.ImportAll(db))
+                SeedData.EnsureSeeded(db);
 
-    // For the FCB source, seed the local DATCOMN production clone unless the FCB
-    // data has already been staged live from the AS/400. Staging is on-demand
-    // (see POST /api/fcb/refresh), not run on every startup.
-    if (source == "Fcb" && !Fcb400Stager.IsStaged(app.Configuration))
-        FcbSeeder.EnsureFcbServerScopes(db);
+            // For the FCB source, seed the local DATCOMN production clone unless the FCB
+            // data has already been staged live from the AS/400. Staging is on-demand
+            // (see POST /api/fcb/refresh), not run on every startup.
+            if (source == "Fcb" && !Fcb400Stager.IsStaged(app.Configuration))
+                FcbSeeder.EnsureFcbServerScopes(db);
+            
+            // GoAnywhere configuration seeding is disabled - use the API to add/manage projects
+            // var basePath = app.Environment.ContentRootPath; // Use application's content root
+            // var seeder = new GoAnywhereSeeder(db, basePath);
+            // await seeder.SeedAsync();
+            
+            Console.WriteLine($"[STARTUP] ✓ Source {source} initialized successfully");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[STARTUP] ✗ Error initializing source {source}: {ex.Message}");
+            Console.WriteLine($"[STARTUP] Stack: {ex.StackTrace}");
+            // Don't exit, continue with other sources
+        }
+    }
+    
+    Console.WriteLine("[STARTUP] Database initialization complete");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"[STARTUP] FATAL: {ex.Message}");
+    Console.WriteLine($"[STARTUP] {ex.StackTrace}");
+    throw;
 }
 
+Console.WriteLine("[STARTUP] Configuring middleware...");
 app.UseSwagger();
 app.UseSwaggerUI();
+app.UseSession();
 app.UseCors();
+app.MapControllers();
+
+Console.WriteLine("[STARTUP] ✓ Application ready to receive requests");
 
 // Writes are rejected when the read-only (FCB) source is selected.
 static IResult ReadOnlyResult() =>
@@ -141,12 +178,17 @@ app.MapGet("/api/resolve-all", async (string variable, string? server, int? vari
     .WithTags("resolution");
 
 // ---- AS/400 (IBM i) sign-in: validate the supplied user profile/password ----
-app.MapPost("/api/login", (LoginRequest req, As400AuthService auth) =>
+app.MapPost("/api/login", (LoginRequest req, HttpContext http, As400AuthService auth) =>
 {
     var (ok, error) = auth.Validate(req.UserId, req.Password);
-    return ok
-        ? Results.Ok(new { userId = (req.UserId ?? string.Empty).Trim().ToUpperInvariant() })
-        : Results.Json(new { error = error ?? "Invalid credentials." }, statusCode: StatusCodes.Status401Unauthorized);
+    if (ok)
+    {
+        // Store credentials in session for IFS service to use
+        http.Session.SetString("uid", req.UserId);
+        http.Session.SetString("pwd", req.Password);
+        return Results.Ok(new { userId = (req.UserId ?? string.Empty).Trim().ToUpperInvariant() });
+    }
+    return Results.Json(new { error = error ?? "Invalid credentials." }, statusCode: StatusCodes.Status401Unauthorized);
 }).WithTags("auth");
 
 // ---- On-demand staging: refresh the FCB source live from the FCB AS/400 ----
@@ -162,6 +204,16 @@ app.MapPost("/api/fcb/refresh", (FcbRefreshRequest? req, HttpContext http, Confi
     return Results.Json(new { staged = false, error = "FCB AS/400 staging is not configured or failed." },
         statusCode: StatusCodes.Status502BadGateway);
 }).WithTags("fcb");
+
+// Final startup message
+Console.WriteLine("");
+Console.WriteLine("╔════════════════════════════════════════════════════════╗");
+Console.WriteLine("║  Config System API - Starting HTTP Server              ║");
+Console.WriteLine("║  Listening on: http://localhost:5198                  ║");
+Console.WriteLine("║  Swagger UI: http://localhost:5198/swagger            ║");
+Console.WriteLine("║  Ready to accept requests                             ║");
+Console.WriteLine("╚════════════════════════════════════════════════════════╝");
+Console.WriteLine("");
 
 app.Run();
 

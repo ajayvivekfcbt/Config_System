@@ -44,7 +44,18 @@ async function http<T>(method: string, url: string, body?: unknown): Promise<T> 
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`${method} ${url} failed: ${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    let errorMessage = `${method} ${url} failed: ${res.status} ${res.statusText}`;
+    try {
+      const errorData = await res.json();
+      if (errorData.message) {
+        errorMessage = errorData.message;
+      }
+    } catch (e) {
+      // If response is not JSON, use default error message
+    }
+    throw new Error(errorMessage);
+  }
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
 
@@ -54,6 +65,12 @@ export const api = {
   create: <T>(route: string, data: T) => http<T>("POST", `/${route}`, data),
   update: <T>(route: string, id: number, data: T) => http<T>("PUT", `/${route}/${id}`, data),
   remove: (route: string, id: number) => http<void>("DELETE", `/${route}/${id}`),
+  authLogin: (userId: string, password: string) =>
+    http<{ message: string; userId: string; isAuthenticated: boolean }>("POST", `/auth/login`, { userId, password }),
+  authLogout: () =>
+    http<{ message: string }>("POST", `/auth/logout`, {}),
+  authStatus: () =>
+    http<{ isAuthenticated: boolean; userId?: string }>("GET", `/auth/status`),
   login: (userId: string, password: string) =>
     http<{ userId: string }>("POST", `/login`, { userId, password }),
   refreshFcb: () =>
@@ -75,6 +92,14 @@ export const api = {
         variableId != null ? `&variableId=${variableId}` : ""
       }`
     ),
+  listIfsDirectory: (path: string) =>
+    http<ListDirectoryResponse>("GET", `/ifs/list?path=${encodeURIComponent(path)}`),
+  readIfsFile: (path: string) =>
+    http<FileContentResponse>("GET", `/ifs/read?path=${encodeURIComponent(path)}`),
+  writeIfsFile: (path: string, content: string) =>
+    http<WriteFileResponse>("POST", `/ifs/write?path=${encodeURIComponent(path)}`, { content }),
+  getIfsMetadata: (path: string) =>
+    http<FileMetadata>("GET", `/ifs/metadata?path=${encodeURIComponent(path)}`),
 };
 
 export interface ResolveResult {
@@ -85,4 +110,47 @@ export interface ResolveResult {
   method: string | null;
   found: boolean;
   valueId: number | null;
+}
+
+export interface DirectoryEntry {
+  name: string;
+  path: string;
+  type: "file" | "directory";
+  size: number;
+  modified: string;
+  isReadable: boolean;
+}
+
+export interface ListDirectoryResponse {
+  path: string;
+  entries: DirectoryEntry[];
+  isRootPath: boolean;
+}
+
+export interface FileContentResponse {
+  path: string;
+  content: string;
+  size: number;
+  modified: string;
+  fileType: string;
+}
+
+export interface WriteFileResponse {
+  path: string;
+  size: number;
+  modified: string;
+  success: boolean;
+  message: string;
+}
+
+export interface FileMetadata {
+  path: string;
+  name: string;
+  type: "file" | "directory";
+  size: number;
+  created: string;
+  modified: string;
+  isReadable: boolean;
+  isWritable: boolean;
+  ownerName: string;
 }
