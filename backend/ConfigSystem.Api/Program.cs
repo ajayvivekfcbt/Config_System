@@ -41,7 +41,7 @@ try
             var connectionString = ConfigSource.ConnectionString(app.Configuration, source);
             var options = new DbContextOptionsBuilder<ConfigDbContext>().UseSqlite(connectionString).Options;
             using var db = new ConfigDbContext(options);
-            db.Database.EnsureCreated();
+            db.Database.Migrate();
             // Prefer the real data exported from IBM i; fall back to the demo seed.
             if (!DataImporter.ImportAll(db))
                 SeedData.EnsureSeeded(db);
@@ -52,7 +52,7 @@ try
             if (source == "Fcb" && !Fcb400Stager.IsStaged(app.Configuration))
                 FcbSeeder.EnsureFcbServerScopes(db);
             
-            // GoAnywhere configuration seeding is disabled - use the API to add/manage projects
+            // GoAnywhere configuration seeding is disabled - data persists via CRUD API
             // var basePath = app.Environment.ContentRootPath; // Use application's content root
             // var seeder = new GoAnywhereSeeder(db, basePath);
             // await seeder.SeedAsync();

@@ -170,11 +170,15 @@ public class GoAnywhereSeeder
                             
                             if (!string.IsNullOrWhiteSpace(extentName))
                             {
+                                // Determine default project path based on project name
+                                var defaultPath = GetDefaultProjectPathForName(extentName);
+                                
                                 projects.Add(new GoAnywhereProject
                                 {
                                     Id = projectId++,
                                     Name = extentName,
                                     Description = parts.Length > 3 ? parts[3].Trim() : $"GoAnywhere Project - {extentName}",
+                                    ProjectPath = defaultPath,
                                     ContextId = contextId,
                                     ExtentId = extentId,
                                     ExtentName = extentName
@@ -203,40 +207,54 @@ public class GoAnywhereSeeder
         }
     }
 
+    private string GetDefaultProjectPathForName(string projectName)
+    {
+        // Test/Beta projects use /Betatest
+        if (projectName.Contains("Test", StringComparison.OrdinalIgnoreCase) || 
+            projectName.Contains("Exc", StringComparison.OrdinalIgnoreCase) ||
+            projectName.Contains("Dev", StringComparison.OrdinalIgnoreCase))
+        {
+            return "/Betatest";
+        }
+        
+        // All others use /production (default)
+        return "/production";
+    }
+
     private List<GoAnywhereProject> GetFallbackProjects()
     {
         return new[]
         {
-            new GoAnywhereProject { Name = "Projects", Description = "GA Project Variables", ExtentId = 3, ExtentName = "Projects", ContextId = 3 },
-            new GoAnywhereProject { Name = "Config", Description = "Configurations", ExtentId = 28, ExtentName = "Config", ContextId = 3 },
-            new GoAnywhereProject { Name = "AgriLine", Description = "AgriLine", ExtentId = 54, ExtentName = "AgriLine", ContextId = 8 },
-            new GoAnywhereProject { Name = "WellsFargoRDC", Description = "Wells Fargo RDC", ExtentId = 101, ExtentName = "WellsFargoRDC", ContextId = 8 },
-            new GoAnywhereProject { Name = "WellsFargoRDCRtn", Description = "Wells Fargo RDC Returns", ExtentId = 102, ExtentName = "WellsFargoRDCRtn", ContextId = 8 },
-            new GoAnywhereProject { Name = "MinnMutualGET", Description = "Minnesota Mutual GET", ExtentId = 107, ExtentName = "MinnMutualGET", ContextId = 8 },
-            new GoAnywhereProject { Name = "MinnMutualPUT", Description = "Minnesota Mutual PUT", ExtentId = 108, ExtentName = "MinnMutualPUT", ContextId = 8 },
-            new GoAnywhereProject { Name = "AgriLineExc", Description = "AgriLine Exceptions", ExtentId = 110, ExtentName = "AgriLineExc", ContextId = 8 },
-            new GoAnywhereProject { Name = "PatChecksExport", Description = "Patronage Checks Export", ExtentId = 111, ExtentName = "PatChecksExport", ContextId = 8 },
-            new GoAnywhereProject { Name = "PatClearedChecks", Description = "Patronage Cleared Checks", ExtentId = 112, ExtentName = "PatClearedChecks", ContextId = 8 },
-            new GoAnywhereProject { Name = "PatPositivePay", Description = "Patronage Positive Pay", ExtentId = 114, ExtentName = "PatPositivePay", ContextId = 8 },
-            new GoAnywhereProject { Name = "PatCheckRegister", Description = "Patronage Check Register", ExtentId = 115, ExtentName = "PatCheckRegister", ContextId = 8 },
-            new GoAnywhereProject { Name = "PatClearedChecksTest", Description = "Patronage Cleared Checks Test Site", ExtentId = 116, ExtentName = "PatClearedChecksTest", ContextId = 8 },
-            new GoAnywhereProject { Name = "PatPositivePayTest", Description = "Patronage Positive Pay Test Site", ExtentId = 117, ExtentName = "PatPositivePayTest", ContextId = 8 },
-            new GoAnywhereProject { Name = "LNFHClearedChecksGet", Description = "Loan & Funds Held Cleared Checks Get File from JPM", ExtentId = 120, ExtentName = "LNFHClearedChecksGet", ContextId = 8 },
-            new GoAnywhereProject { Name = "LNFHPosPayPayPilot", Description = "Loan & Funds Held Positive Pay from Pay Pilot", ExtentId = 122, ExtentName = "LNFHPosPayPayPilot", ContextId = 8 },
-            new GoAnywhereProject { Name = "APClearedChecks", Description = "AP Cleared Checks", ExtentId = 133, ExtentName = "APClearedChecks", ContextId = 8 },
-            new GoAnywhereProject { Name = "OFAC", Description = "Office of Foreign Assets Control", ExtentId = 135, ExtentName = "OFAC", ContextId = 8 },
-            new GoAnywhereProject { Name = "APPositivePay", Description = "AP Positive Pay", ExtentId = 137, ExtentName = "APPositivePay", ContextId = 8 },
-            new GoAnywhereProject { Name = "APPositivePayAck", Description = "AP Positive Pay Acknowledgement", ExtentId = 136, ExtentName = "APPositivePayAck", ContextId = 8 },
-            new GoAnywhereProject { Name = "FRBServices", Description = "Federal Reserve Board Services", ExtentId = 146, ExtentName = "FRBServices", ContextId = 8 },
-            new GoAnywhereProject { Name = "Payroll", Description = "Payroll File Download from AgFirst", ExtentId = 147, ExtentName = "Payroll", ContextId = 8 },
-            new GoAnywhereProject { Name = "PayrollBEN", Description = "Payroll Benefits File Download from AgFirst", ExtentId = 148, ExtentName = "PayrollBEN", ContextId = 8 },
-            new GoAnywhereProject { Name = "PayrollUHC", Description = "Payroll UHC Benefit File Download from AgFirst", ExtentId = 149, ExtentName = "PayrollUHC", ContextId = 8 },
-            new GoAnywhereProject { Name = "PayrollANN", Description = "Payroll Annual Leave File Download from AgFirst", ExtentId = 150, ExtentName = "PayrollANN", ContextId = 8 },
-            new GoAnywhereProject { Name = "CtlDisbJPMPrev", Description = "Controlled Disbursements JPM Chase Previous Day", ExtentId = 255, ExtentName = "CtlDisbJPMPrev", ContextId = 8 },
-            new GoAnywhereProject { Name = "LockBox", Description = "LockBox Download with Wells Fargo", ExtentId = 182, ExtentName = "LockBox", ContextId = 8 },
-            new GoAnywhereProject { Name = "LockBox Processing Wells", Description = "LockBox Process Wells Fargo", ExtentId = 183, ExtentName = "LockBoxPrc", ContextId = 8 },
-            new GoAnywhereProject { Name = "EBox", Description = "EBox Processing", ExtentId = 184, ExtentName = "EBox", ContextId = 8 },
-            new GoAnywhereProject { Name = "EBox Processing Wells", Description = "EBox Process Wells Fargo", ExtentId = 185, ExtentName = "EBoxPrc", ContextId = 8 }
+            new GoAnywhereProject { Name = "Projects", Description = "GA Project Variables", ProjectPath = "/production", ExtentId = 3, ExtentName = "Projects", ContextId = 3 },
+            new GoAnywhereProject { Name = "Config", Description = "Configurations", ProjectPath = "/production", ExtentId = 28, ExtentName = "Config", ContextId = 3 },
+            new GoAnywhereProject { Name = "AgriLine", Description = "AgriLine", ProjectPath = "/production", ExtentId = 54, ExtentName = "AgriLine", ContextId = 8 },
+            new GoAnywhereProject { Name = "WellsFargoRDC", Description = "Wells Fargo RDC", ProjectPath = "/production", ExtentId = 101, ExtentName = "WellsFargoRDC", ContextId = 8 },
+            new GoAnywhereProject { Name = "WellsFargoRDCRtn", Description = "Wells Fargo RDC Returns", ProjectPath = "/production", ExtentId = 102, ExtentName = "WellsFargoRDCRtn", ContextId = 8 },
+            new GoAnywhereProject { Name = "MinnMutualGET", Description = "Minnesota Mutual GET", ProjectPath = "/production", ExtentId = 107, ExtentName = "MinnMutualGET", ContextId = 8 },
+            new GoAnywhereProject { Name = "MinnMutualPUT", Description = "Minnesota Mutual PUT", ProjectPath = "/production", ExtentId = 108, ExtentName = "MinnMutualPUT", ContextId = 8 },
+            new GoAnywhereProject { Name = "AgriLineExc", Description = "AgriLine Exceptions", ProjectPath = "/production", ExtentId = 110, ExtentName = "AgriLineExc", ContextId = 8 },
+            new GoAnywhereProject { Name = "PatChecksExport", Description = "Patronage Checks Export", ProjectPath = "/production", ExtentId = 111, ExtentName = "PatChecksExport", ContextId = 8 },
+            new GoAnywhereProject { Name = "PatClearedChecks", Description = "Patronage Cleared Checks", ProjectPath = "/production", ExtentId = 112, ExtentName = "PatClearedChecks", ContextId = 8 },
+            new GoAnywhereProject { Name = "PatPositivePay", Description = "Patronage Positive Pay", ProjectPath = "/production", ExtentId = 114, ExtentName = "PatPositivePay", ContextId = 8 },
+            new GoAnywhereProject { Name = "PatCheckRegister", Description = "Patronage Check Register", ProjectPath = "/production", ExtentId = 115, ExtentName = "PatCheckRegister", ContextId = 8 },
+            new GoAnywhereProject { Name = "PatClearedChecksTest", Description = "Patronage Cleared Checks Test Site", ProjectPath = "/Betatest", ExtentId = 116, ExtentName = "PatClearedChecksTest", ContextId = 8 },
+            new GoAnywhereProject { Name = "PatPositivePayTest", Description = "Patronage Positive Pay Test Site", ProjectPath = "/Betatest", ExtentId = 117, ExtentName = "PatPositivePayTest", ContextId = 8 },
+            new GoAnywhereProject { Name = "LNFHClearedChecksGet", Description = "Loan & Funds Held Cleared Checks Get File from JPM", ProjectPath = "/production", ExtentId = 120, ExtentName = "LNFHClearedChecksGet", ContextId = 8 },
+            new GoAnywhereProject { Name = "LNFHPosPayPayPilot", Description = "Loan & Funds Held Positive Pay from Pay Pilot", ProjectPath = "/production", ExtentId = 122, ExtentName = "LNFHPosPayPayPilot", ContextId = 8 },
+            new GoAnywhereProject { Name = "APClearedChecks", Description = "AP Cleared Checks", ProjectPath = "/production", ExtentId = 133, ExtentName = "APClearedChecks", ContextId = 8 },
+            new GoAnywhereProject { Name = "OFAC", Description = "Office of Foreign Assets Control", ProjectPath = "/production", ExtentId = 135, ExtentName = "OFAC", ContextId = 8 },
+            new GoAnywhereProject { Name = "APPositivePay", Description = "AP Positive Pay", ProjectPath = "/production", ExtentId = 137, ExtentName = "APPositivePay", ContextId = 8 },
+            new GoAnywhereProject { Name = "APPositivePayAck", Description = "AP Positive Pay Acknowledgement", ProjectPath = "/production", ExtentId = 136, ExtentName = "APPositivePayAck", ContextId = 8 },
+            new GoAnywhereProject { Name = "FRBServices", Description = "Federal Reserve Board Services", ProjectPath = "/production", ExtentId = 146, ExtentName = "FRBServices", ContextId = 8 },
+            new GoAnywhereProject { Name = "Payroll", Description = "Payroll File Download from AgFirst", ProjectPath = "/production", ExtentId = 147, ExtentName = "Payroll", ContextId = 8 },
+            new GoAnywhereProject { Name = "PayrollBEN", Description = "Payroll Benefits File Download from AgFirst", ProjectPath = "/production", ExtentId = 148, ExtentName = "PayrollBEN", ContextId = 8 },
+            new GoAnywhereProject { Name = "PayrollUHC", Description = "Payroll UHC Benefit File Download from AgFirst", ProjectPath = "/production", ExtentId = 149, ExtentName = "PayrollUHC", ContextId = 8 },
+            new GoAnywhereProject { Name = "PayrollANN", Description = "Payroll Annual Leave File Download from AgFirst", ProjectPath = "/production", ExtentId = 150, ExtentName = "PayrollANN", ContextId = 8 },
+            new GoAnywhereProject { Name = "CtlDisbJPMPrev", Description = "Controlled Disbursements JPM Chase Previous Day", ProjectPath = "/production", ExtentId = 255, ExtentName = "CtlDisbJPMPrev", ContextId = 8 },
+            new GoAnywhereProject { Name = "LockBox", Description = "LockBox Download with Wells Fargo", ProjectPath = "/production", ExtentId = 182, ExtentName = "LockBox", ContextId = 8 },
+            new GoAnywhereProject { Name = "LockBox Processing Wells", Description = "LockBox Process Wells Fargo", ProjectPath = "/production", ExtentId = 183, ExtentName = "LockBoxPrc", ContextId = 8 },
+            new GoAnywhereProject { Name = "EBox", Description = "EBox Processing", ProjectPath = "/production", ExtentId = 184, ExtentName = "EBox", ContextId = 8 },
+            new GoAnywhereProject { Name = "EBox Processing Wells", Description = "EBox Process Wells Fargo", ProjectPath = "/production", ExtentId = 185, ExtentName = "EBoxPrc", ContextId = 8 }
         }.ToList();
     }
 

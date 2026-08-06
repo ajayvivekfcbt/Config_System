@@ -19,6 +19,23 @@ public class GoAnywhereController : ControllerBase
     }
 
     /// <summary>
+    /// Helper method to check if a configuration is access-controlled (FCB /production)
+    /// </summary>
+    private bool IsProductionConfigProtected(string? source, string? projectPath)
+    {
+        return source == "FCB" && !string.IsNullOrEmpty(projectPath) && projectPath.StartsWith("/production");
+    }
+
+    /// <summary>
+    /// Helper method to get the config source from request header
+    /// </summary>
+    private string GetConfigSource()
+    {
+        Request.Headers.TryGetValue("X-Config-Source", out var source);
+        return source.ToString() ?? "Dev";
+    }
+
+    /// <summary>
     /// GET /api/goanywhere/projects
     /// Retrieves all GoAnywhere projects
     /// </summary>
@@ -165,6 +182,14 @@ public class GoAnywhereController : ControllerBase
             if (project == null)
                 return NotFound(new { error = $"Project with ID {request.ProjectId} not found" });
 
+            // Check access control: FCB /production configurations are read-only
+            var source = GetConfigSource();
+            if (IsProductionConfigProtected(source, project.ProjectPath))
+            {
+                _logger.LogWarning($"Access denied: Attempted to create config in FCB /production project {request.ProjectId} from source {source}");
+                return Forbid("FCB /production configurations are read-only and cannot be modified");
+            }
+
             // Check if configuration already exists (UNIQUE constraint)
             var existingConfig = await _context.GoAnywhereConfigs
                 .FirstOrDefaultAsync(c => c.ProjectId == request.ProjectId 
@@ -225,6 +250,19 @@ public class GoAnywhereController : ControllerBase
             if (config == null)
                 return NotFound(new { error = $"Configuration with ID {id} not found" });
 
+            // Get the project to check its path
+            var project = await _context.GoAnywhereProjects.FindAsync(config.ProjectId);
+            if (project == null)
+                return NotFound(new { error = $"Project with ID {config.ProjectId} not found" });
+
+            // Check access control: FCB /production configurations are read-only
+            var source = GetConfigSource();
+            if (IsProductionConfigProtected(source, project.ProjectPath))
+            {
+                _logger.LogWarning($"Access denied: Attempted to update FCB /production config {id} from source {source}");
+                return Forbid("FCB /production configurations are read-only and cannot be modified");
+            }
+
             config.ConfigValue = request.ConfigValue;
             config.LastModifiedDate = DateTime.UtcNow;
 
@@ -262,6 +300,19 @@ public class GoAnywhereController : ControllerBase
             var config = await _context.GoAnywhereConfigs.FindAsync(id);
             if (config == null)
                 return NotFound(new { error = $"Configuration with ID {id} not found" });
+
+            // Get the project to check its path
+            var project = await _context.GoAnywhereProjects.FindAsync(config.ProjectId);
+            if (project == null)
+                return NotFound(new { error = $"Project with ID {config.ProjectId} not found" });
+
+            // Check access control: FCB /production configurations are read-only
+            var source = GetConfigSource();
+            if (IsProductionConfigProtected(source, project.ProjectPath))
+            {
+                _logger.LogWarning($"Access denied: Attempted to delete FCB /production config {id} from source {source}");
+                return Forbid("FCB /production configurations are read-only and cannot be deleted");
+            }
 
             _context.GoAnywhereConfigs.Remove(config);
             await _context.SaveChangesAsync();

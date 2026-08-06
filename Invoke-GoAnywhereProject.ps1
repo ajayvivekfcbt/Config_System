@@ -32,6 +32,7 @@
 
 .PARAMETER SkipCertificateCheck
     Skip SSL certificate validation (useful for self-signed certificates).
+    Works with PowerShell 6.0 and later.
 
 .PARAMETER Verbose
     Enable verbose output for debugging.
@@ -57,19 +58,19 @@ param(
     [ValidateSet("DATO", "DATI", "DATU", "DATV", "DATN", "FCB")]
     [string]$Environment,
 
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory=$false)]
     [ValidateNotNullOrEmpty()]
-    [string]$GoAnywhereUrl,
+    [string]$GoAnywhereUrl = "https://GOANYDEV.develop.fcbt:8001/goanywhere/rest/gacmd/v1/projects",
 
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory=$false)]
     [ValidateNotNullOrEmpty()]
-    [string]$ApiKey,
+    [string]$ApiKey="9b5ead60-97b3-4c51-a474-fbd6b5b42bfe",
 
     [Parameter(Mandatory=$false)]
     [string]$ConfigApiUrl = "http://localhost:5198/api",
 
     [Parameter(Mandatory=$false)]
-    [string]$ProjectPath = "",
+    [string]$ProjectPath = "/dev/Ajay",
 
     [Parameter(Mandatory=$false)]
     [hashtable]$AdditionalVariables = @{},
@@ -80,22 +81,20 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# ============================================================================
-# Helper Functions
-# ============================================================================
-
-function Set-CertificateValidation {
-    param([bool]$Skip = $false)
-    
-    if ($Skip) {
-        if ($PSVersionTable.PSVersion.Major -lt 6) {
-            # PowerShell 5.1 on Windows Desktop
-            [System.Net.ServicePointManager]::ServerCertificateValidationCallback = {
-                return $true
-            }
+# Handle certificate validation for older PowerShell versions
+if ($SkipCertificateCheck) {
+    if ($PSVersionTable.PSVersion.Major -lt 6) {
+        # For Windows PowerShell 5.1 and earlier
+        [System.Net.ServicePointManager]::ServerCertificateValidationCallback = {
+            param($sender, $certificate, $chain, $policy)
+            return $true
         }
     }
 }
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
 
 function Write-VerboseLog {
     param([string]$Message)
@@ -111,8 +110,8 @@ function Test-ApiConnection {
             Method = "Get"
             ErrorAction = "Stop"
         }
-        if ($PSVersionTable.PSVersion.Major -ge 6) {
-            $params["SkipCertificateCheck"] = $SkipCertificateCheck
+        if ($SkipCertificateCheck -and $PSVersionTable.PSVersion.Major -ge 6) {
+            $params["SkipCertificateCheck"] = $true
         }
         $result = Invoke-RestMethod @params
         return $true
@@ -131,8 +130,8 @@ function Get-ProjectId {
             Uri    = "$ConfigApiUrl/goanywhere/projects"
             Method = "Get"
         }
-        if ($PSVersionTable.PSVersion.Major -ge 6) {
-            $params["SkipCertificateCheck"] = $SkipCertificateCheck
+        if ($SkipCertificateCheck -and $PSVersionTable.PSVersion.Major -ge 6) {
+            $params["SkipCertificateCheck"] = $true
         }
         
         $response = Invoke-RestMethod @params
@@ -162,8 +161,8 @@ function Get-ProjectConfigurations {
             Uri    = "$ConfigApiUrl/goanywhere/configs?projectId=$ProjectId&environment=$Env"
             Method = "Get"
         }
-        if ($PSVersionTable.PSVersion.Major -ge 6) {
-            $params["SkipCertificateCheck"] = $SkipCertificateCheck
+        if ($SkipCertificateCheck -and $PSVersionTable.PSVersion.Major -ge 6) {
+            $params["SkipCertificateCheck"] = $true
         }
         $configs = Invoke-RestMethod @params
         return $configs
@@ -257,8 +256,8 @@ function Invoke-GoAnywhereExecution {
             Body    = $body
             Headers = $headers
         }
-        if ($PSVersionTable.PSVersion.Major -ge 6) {
-            $params["SkipCertificateCheck"] = $SkipCertificateCheck
+        if ($SkipCertificateCheck -and $PSVersionTable.PSVersion.Major -ge 6) {
+            $params["SkipCertificateCheck"] = $true
         }
         
         $response = Invoke-RestMethod @params
@@ -275,14 +274,6 @@ function Invoke-GoAnywhereExecution {
 # ============================================================================
 
 try {
-    # Configure certificate validation
-    Set-CertificateValidation -Skip $SkipCertificateCheck
-    
-    # Validate API connections
-    if (-not (Test-ApiConnection -Url $ConfigApiUrl)) {
-        throw "Cannot connect to ConfigSystem API at $ConfigApiUrl"
-    }
-    
     # Use the provided ProjectName directly
     $effectiveProjectName = $ProjectName
     

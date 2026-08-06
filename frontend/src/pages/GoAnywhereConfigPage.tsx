@@ -21,6 +21,8 @@ interface GAConfig {
 export default function GoAnywhereConfigPage() {
   const [projects, setProjects] = useState<GAProject[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [projectSearch, setProjectSearch] = useState<string>("");
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [selectedEnvironment, setSelectedEnvironment] = useState<"DATO" | "DATI" | "DATU" | "DATV" | "DATN" | "FCB">("DATO");
   const [configs, setConfigs] = useState<GAConfig[]>([]);
   const [loading, setLoading] = useState(true);
@@ -357,35 +359,81 @@ export default function GoAnywhereConfigPage() {
     });
   };
 
+  // Filter projects based on search
+  const filteredProjects = projects.filter((p) =>
+    p.name.toLowerCase().includes(projectSearch.toLowerCase()) ||
+    p.description?.toLowerCase().includes(projectSearch.toLowerCase())
+  );
+
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
+
+  const handleProjectSelect = (projectId: number) => {
+    setSelectedProjectId(projectId);
+    setProjectSearch("");
+    setShowProjectDropdown(false);
+  };
+
+  // Helper function to check if config is access-controlled (FCB /production)
+  const isConfigProtected = (): boolean => {
+    return selectedEnvironment === "FCB" && selectedProject?.projectPath?.startsWith("/production") === true;
+  };
+
+  const getProtectionMessage = (): string => {
+    if (isConfigProtected()) {
+      return "FCB /production configurations are read-only";
+    }
+    return "";
+  };
 
   return (
     <div className="ga-config-container">
-      <h2>GoAnywhere Configuration Management</h2>
+      <h2>GoAnywhere Config</h2>
       <p className="subtitle">
-        Manage configuration values for GoAnywhere projects across DATO, DATI, DATU, DATV, DATN, and FCB environments.
+        Manage configuration values and projects across DATO, DATI, DATU, DATV, DATN, and FCB environments.
       </p>
 
       {error && <div className="error-message">{error}</div>}
 
       <div className="ga-controls">
         <div className="control-group">
-          <label htmlFor="project-select">Select Project:</label>
-          <select
-            id="project-select"
-            value={selectedProjectId || ""}
-            onChange={(e) => setSelectedProjectId(parseInt(e.target.value) || null)}
-            className="select-field"
-            disabled={loading}
-          >
-            <option value="">-- Choose a Project --</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-                {p.description ? ` - ${p.description}` : ""}
-              </option>
-            ))}
-          </select>
+          <label htmlFor="project-search">Search Project:</label>
+          <div className="project-search-container">
+            <input
+              id="project-search"
+              type="text"
+              value={projectSearch}
+              onChange={(e) => {
+                setProjectSearch(e.target.value);
+                setShowProjectDropdown(true);
+              }}
+              onFocus={() => setShowProjectDropdown(true)}
+              placeholder="Type to search projects..."
+              className="search-input"
+              disabled={loading}
+            />
+            {selectedProjectId && selectedProject && (
+              <span className="selected-project-badge">{selectedProject.name}</span>
+            )}
+            {showProjectDropdown && projectSearch && (
+              <div className="project-dropdown">
+                {filteredProjects.length > 0 ? (
+                  filteredProjects.map((p) => (
+                    <div
+                      key={p.id}
+                      className={`project-option ${p.id === selectedProjectId ? "selected" : ""}`}
+                      onClick={() => handleProjectSelect(p.id)}
+                    >
+                      <div className="project-name">{p.name}</div>
+                      {p.description && <div className="project-desc">{p.description}</div>}
+                      {p.projectPath && <div className="project-path-small">{p.projectPath}</div>}
+                    </div>
+                  ))
+                ) : (
+                  <div className="project-option disabled">No projects found</div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="control-group">
@@ -446,13 +494,13 @@ export default function GoAnywhereConfigPage() {
             <input
               id="project-path"
               type="text"
-              placeholder="e.g., /dev/Ajay, /IRS (starts with /)"
+              placeholder="e.g., /dev/Ajay, /production (FCB/DATU/DATV), /Betatest (others)"
               value={newProject.projectPath}
               onChange={(e) => setNewProject({ ...newProject, projectPath: e.target.value })}
               className="form-input"
             />
             <small style={{ color: "#7f8c8d", marginTop: "-4px" }}>
-              Optional. Paths should start with / (will be auto-corrected if needed)
+              Optional. Use /production for FCB/DATU/DATV, /Betatest for DATO/DATI/DATN. Paths should start with /
             </small>
           </div>
           <div className="form-buttons">
@@ -479,6 +527,11 @@ export default function GoAnywhereConfigPage() {
           <div className="project-header">
             <h3>{selectedProject.name}</h3>
             {selectedProject.description && <p>{selectedProject.description}</p>}
+            {isConfigProtected() && (
+              <div className="protection-warning">
+                🔒 FCB /production configurations are read-only
+              </div>
+            )}
             <div className="project-path-section">
               {editingProjectPath ? (
                 <div className="project-path-edit">
@@ -583,14 +636,16 @@ export default function GoAnywhereConfigPage() {
                           <button
                             className="btn-edit"
                             onClick={() => handleEdit(config.id, config.configValue)}
-                            disabled={saving}
+                            disabled={saving || isConfigProtected()}
+                            title={getProtectionMessage()}
                           >
                             Edit
                           </button>
                           <button
                             className="btn-delete"
                             onClick={() => handleDeleteConfiguration(config.id, config.configKey)}
-                            disabled={saving}
+                            disabled={saving || isConfigProtected()}
+                            title={getProtectionMessage()}
                           >
                             Delete
                           </button>
@@ -608,7 +663,8 @@ export default function GoAnywhereConfigPage() {
               <button
                 className="btn-add-config"
                 onClick={() => setShowAddForm(true)}
-                disabled={saving}
+                disabled={saving || isConfigProtected()}
+                title={getProtectionMessage()}
               >
                 + Add Configuration
               </button>

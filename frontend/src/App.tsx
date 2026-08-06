@@ -15,6 +15,7 @@ export default function App() {
   const [source, setSourceState] = useState<Source>(() => getSource());
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMsg, setRefreshMsg] = useState<string>();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (!user) {
     return (
@@ -50,16 +51,34 @@ export default function App() {
 
   return (
     <div className="layout">
-      <aside className="sidebar">
-        <h1>UT Config</h1>
+      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)}></div>}
+      <button className="menu-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
+        <h1>GoAnywhere Config</h1>
         <nav>
-          <Link className={`primary ${loc.pathname === "/" ? "active" : ""}`} to="/">
+          <Link
+            className={`primary ${loc.pathname === "/" ? "active" : ""}`}
+            to="/"
+            onClick={() => setSidebarOpen(false)}
+          >
             Resolve Value
           </Link>
-          <Link className={loc.pathname === "/menu" ? "active" : ""} to="/menu">
+          <Link
+            className={loc.pathname === "/menu" ? "active" : ""}
+            to="/menu"
+            onClick={() => setSidebarOpen(false)}
+          >
             Menu
           </Link>
-          <Link className={loc.pathname === "/goanywhere" ? "active" : ""} to="/goanywhere">
+          <Link
+            className={loc.pathname === "/goanywhere" ? "active" : ""}
+            to="/goanywhere"
+            onClick={() => setSidebarOpen(false)}
+          >
             GoAnywhere Config
           </Link>
           {menuItems.map((e) => (
@@ -67,6 +86,7 @@ export default function App() {
               key={e.route}
               className={loc.pathname.startsWith(`/${e.route}`) ? "active" : ""}
               to={`/${e.route}`}
+              onClick={() => setSidebarOpen(false)}
             >
               {e.title}
             </Link>
