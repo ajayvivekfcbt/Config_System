@@ -1,0 +1,16 @@
+.git
+.gitignore
+.vscode
+.vs
+.idea
+bin
+obj
+*.user
+*.suo
+*.sln.iml
+.DS_Store
+node_modules
+npm-debug.log
+.env
+.env.local
+appsettings.Development.json

@@ -1,0 +1,318 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<goAnywhereMergedProjects>
+<project name="AGSWEEP COPY" mainModule="Main" version="2.0" logLevel="debug">
+	<description>Copy the Daily Combined Nacha file from the IFS staging folder into the Cash Operations CombinedACHDailyFiles folder</description>
+	<variable name="Resource" value="AgSweepBAI Dev" />
+	<variable name="Collection" value="0" />
+	<variable name="HostServer" value="DEV" />
+	<variable name="HostLibrary" value="DATCOMN" />
+	<variable name="StagingDir" value="/BETATEST/DATD/GAStaging" />
+	<variable name="StagingFile" value="sweep.txt" />
+	<variable name="RemoteFile" value="daily_sweep.txt" />
+</project>
+<project name="Copy4100Files" mainModule="Main" version="2.0" logLevel="normal" onError="abort">
+	<description>Copies select pdf&apos;s from the IFS to a 110 Shared Network folder</description>
+	<variable name="ProcessDate" value="2026-08-06" />
+	<variable name="Resource" value="PDFData" />
+	<variable name="Err4100" value="False" />
+	<variable name="ErrB41N" value="False" />
+	<variable name="ErrB411" value="False" />
+	<variable name="Err4101" value="False" />
+</project>
+<project name="Copy4128" mainModule="Main" version="2.0" logLevel="debug">
+	<description>Copy the LA4128 report to network share</description>
+	<variable name="Resource" value="LA4128" />
+	<variable name="Month" value="08" />
+	<variable name="Year" value="26" />
+</project>
+<project name="CopyFolderData" mainModule="Main" version="2.0" logLevel="verbose" threadSafe="true">
+	<description>Clears a DestinationDirectory, then copys all contents of a FromDirectory to it, then if parm passed it can delete the contents of the FromDirectory</description>
+	<variable name="FromDir" value="/Distribution/110/CardinalReportsDaily" description="Directory to copy from" />
+	<variable name="DestDir" value="/110/CardinalReportsDaily" description="Directory to copy to" />
+	<variable name="Resource" value="PDFData" />
+	<variable name="CopyFirst" value="0" description="Copy contents of directory to another before proceeding" />
+	<variable name="CopyDir" value="/110/CardinalReportsDailyOld" description="Directory to copy data before proceeding" />
+	<variable name="ClearError" value="0" />
+</project>
+<project name="CopyFolderDataEOY" mainModule="Main" version="2.0" logLevel="debug" threadSafe="true">
+	<description>Copys the wildcard files in a From Directory to Destination Directory at Year End</description>
+	<variable name="FromDir" value="" description="Directory to copy from" />
+	<variable name="DestDir" value="" description="Directory to copy to" />
+	<variable name="Resource" value="" />
+	<variable name="ProcessDate" value="2026-08-06" />
+</project>
+<project name="CopyIFSFile" mainModule="Main" version="2.0" logLevel="debug" threadSafe="true" onError="abort">
+	<description>Copy a file From/To the IFS From/To a Shared Network folder</description>
+	<variable name="Action" value="PULL" />
+	<variable name="IFSFile" value="/DATCOMN/AP_ClearedChecks/oh00511a.txt" />
+	<variable name="NetworkFile" value="/110/AccountsPayable/APClearedChecks.txt" />
+	<variable name="Resource" value="PDFData" />
+</project>
+<project name="CopyIFSFileScreen" mainModule="Main" version="2.0" logLevel="verbose" threadSafe="true" onError="abort">
+	<description>Copy a file From/To the IFS From/To a Shared Network folder</description>
+	<variable name="Resource" value="PDFData" description="Enterprise distribution main folder" />
+	<variable name="IFSFile" value="/U4142AP/testnew/" />
+	<variable name="DestDir" value="/Test/CHG0036987/" />
+	<variable name="ErrorFlg" value="0" />
+</project>
+<project name="CopyMASK" mainModule="Main" version="2.0">
+	<variable name="ExportModule" value="" />
+	<variable name="ExportNumber" value="" />
+	<variable name="ExportVersion" value="" />
+	<variable name="ExportFormat" value="" />
+	<variable name="Document" value="" />
+	<variable name="DBServer" value="" />
+	<variable name="Staging" value="" />
+	<variable name="Resource" value="" />
+</project>
+<project name="CopyNachaFile" mainModule="Main" version="2.0" logLevel="debug">
+	<description>Copy the Daily Combined Nacha file from the IFS staging folder into the Cash Operations CombinedACHDailyFiles folder</description>
+	<variable name="Share" value="Nacha" />
+	<variable name="StagingDir" value="/BETATEST/DATD/GAStaging" />
+	<variable name="StagingFile" value="nacha.txt" />
+	<variable name="Cutoff" value="2026-06-22" />
+</project>
+<project name="CopyPayrollReports" mainModule="Main" version="2.0" logLevel="debug">
+	<description>Copy a Payroll Reports From the IFS To a Shared Network folder</description>
+	<variable name="ArchiveDir" value="" />
+	<variable name="ZipFileSet" value="" />
+	<variable name="ZipFile" value="" />
+	<variable name="IFSFile" value="" />
+	<variable name="Resource" value="" />
+	<variable name="Cutoff" value="2026-07-07" />
+</project>
+<project name="CRHFMUpload" mainModule="Main" version="2.0" logLevel="debug">
+	<variable name="Resource" value="MASKCsv" description="MASK" />
+	<variable name="Archive" value="MASKCsv" />
+	<variable name="OutputFile" value="DATCOMN.CRHFMRAW" />
+	<variable name="CSVfile" value="/CRHFMUpload.csv" />
+	<variable name="User" value="UCSQLFIN" />
+	<variable name="Password" value="bendovr1" />
+	<variable name="Host" value="FCB" />
+</project>
+<project name="CRUpload" mainModule="Main" version="2.0" logLevel="debug">
+	<variable name="Resource" value="MASKCsv" />
+	<variable name="Archive" value="MASKCsv" />
+	<variable name="OutputFile" value="DATCOMN.CRUADJRAW" />
+	<variable name="CSVfile" value="/CRUploadQtrly.csv" />
+	<variable name="User" value="UCSQLFIN" />
+	<variable name="Password" value="bendovr1" />
+	<variable name="Host" value="FCB" />
+</project>
+<project name="DistributionSave" mainModule="Main" version="2.0" logLevel="normal">
+	<variable name="DistributionPath" value="/Distribution" />
+	<variable name="DistributionCopyPath" value="/DistributionCopy" />
+	<variable name="DistributionCopy2Path" value="/DistributionCopy2" />
+</project>
+<project name="EBox Processing Wells" mainModule="Main" version="2.0" logLevel="verbose">
+	<variable name="LocalDirectory" value="resource:smb://Ebox/iSeries" />
+	<variable name="iSeriesFile" value="DATCOMN.CEP1652" />
+	<variable name="iSeriesServer" value="FCB" description="DEV or FCB" />
+	<variable name="TodaysDate" value="260806" />
+</project>
+<project name="FRB Services ABA Download" mainModule="Main" version="2.0" logLevel="debug">
+	<variable name="Library" value="DATCOMN" />
+	<variable name="Resource" value="resource:share://FEDABA/" />
+	<variable name="FileCleared" value="Y" />
+</project>
+<project name="InfoImage Send Files" mainModule="Main" version="2.0" logLevel="verbose">
+	<description>Sends files to InfoImage using SFTP with PGP encryption.</description>
+	<variable name="EncryptKeyId" value="0x82C696DCE176ED64" />
+	<variable name="LocalShare" value="InfoImageProd" />
+	<variable name="RemoteDirectory" value="/test/billing" />
+	<variable name="Resource" value="InfoImage" />
+	<variable name="Wildcard" value="*simpbill_*" />
+	<variable name="Cutoff" value="2026-02-06" />
+</project>
+<project name="LockBox Processing Wells" mainModule="Main" version="2.0" logLevel="verbose">
+	<variable name="LocalDirectory" value="resource:smb://LockBox/" />
+	<variable name="iSeriesFile" value="DATLCOMN.CEP1652" />
+	<variable name="iSeriesServer" value="DEV" />
+	<variable name="TodaysDate" value="260806" />
+</project>
+<project name="MarKtAccessAlertExt" mainModule="Main" version="2.0" logLevel="debug">
+	<description>Generates and Emails a CSV file for Market Access and Alert Extract</description>
+	<variable name="IFSFolder" value="/MarketAccess/" />
+	<variable name="Library" value="DATCOMN" />
+	<variable name="eMail" value="DLFinancialReporting" />
+	<variable name="Month" value="07" />
+	<variable name="Year" value="2026" />
+</project>
+<project name="Master Document Transport" mainModule="Main" version="1.0" logLevel="verbose">
+	<description>Standard Master MFT Transport functionality for use within the B2B applications.</description>
+	<variable name="Collection" value="4162" />
+	<variable name="Document" value="4158" />
+	<variable name="EmailFrom" value="NoFirst.NoLast@farmcreditbank.com" />
+	<variable name="EmailSubject" value="No Email Subject" />
+	<variable name="EmailTo" value="NoFirst.NoLast@farmcreditbank.com" />
+	<variable name="EncryptMethod" value="*PGP" />
+	<variable name="EndStatus" value="" />
+	<variable name="HostLibrary" value="OSBETADATD" />
+	<variable name="HostPassword" value="bendovr1" />
+	<variable name="HostServer" value="DEV" />
+	<variable name="HostUser" value="UCSQLFIN" />
+	<variable name="MFTDataType" value="" />
+	<variable name="MFTDirection" value="*OUT" />
+	<variable name="MFTMethod" value="*COPY" />
+	<variable name="PGPKeyRing" value="Default Key Ring" />
+	<variable name="PGPPassPhrase" value="money4nothing" />
+	<variable name="ProjectPath" value="/Development/U4142LN" />
+	<variable name="RemoteFile" value="NACHA_Card.txt" />
+	<variable name="RemoteIPAddress" value="161.231.1.121" />
+	<variable name="RemotePassword" value="GZ0U8YSU" />
+	<variable name="RemotePath" value="inbound/FARMC588_ACH_2/" />
+	<variable name="RemoteUser" value="209840" />
+	<variable name="StagingDir" value="/BETATEST/DATD/GAStaging/Collection4162" />
+	<variable name="StagingFile" value="4162.4158" />
+	<variable name="Resource" value="Nacha Dev" />
+</project>
+<project name="mRDCgetCardinal" mainModule="Main" version="1.0" logLevel="verbose">
+	<description>mRDC Staging - Load MRDCDATA from CashMgmt database</description>
+	<variable name="Association" value="CAFC" />
+	<variable name="CorpCode" value="T30" />
+	<variable name="DBResourceI" value="DEV" />
+	<variable name="DBResourceWin" value="mRDC" />
+	<variable name="StageLibrary" value="OSBETADATM" />
+	<variable name="NoData" value="False" />
+</project>
+<project name="mRDCNachaGet" mainModule="Main" version="2.0" logLevel="verbose">
+	<variable name="NetworkResource" value="resource:share://Mobile RDC/" />
+	<variable name="FilesFound" value="" />
+	<variable name="NetworkFile" value="AgTexas" />
+	<variable name="SFTPFile" value="AGTXAgTexas*" />
+	<variable name="SFTPResource" value="Ensenta" />
+	<variable name="FileDate" value="260806" />
+	<variable name="FileTime" value="120000" />
+</project>
+<project name="NACHA COPY" mainModule="Main" version="2.0" logLevel="debug">
+	<description>Copy the Daily Combined Nacha file from the IFS staging folder into the Cash Operations CombinedACHDailyFiles folder</description>
+	<variable name="Resource" value="ACH Dev" />
+	<variable name="Collection" value="0" />
+	<variable name="HostServer" value="DEV" />
+	<variable name="HostLibrary" value="DATCOMN" />
+	<variable name="StagingDir" value="/BETATEST/DATD/GAStaging" />
+	<variable name="StagingFile" value="nacha.txt" />
+	<variable name="RemoteFile" value="NACHA.txt" />
+	<variable name="ProjectPath" value="/Development/U4142LN" />
+	<variable name="EndStatus" value="*SUCCESS" />
+</project>
+<project name="NWMONYUPD" mainModule="Main" version="1.0" logLevel="normal">
+	<description>Temporary Project to update the new money amt in DWH</description>
+	<variable name="HostServer" value="FCB" />
+	<variable name="Resource" value="CME" />
+	<variable name="LibraryName" value="DATCOMN" />
+</project>
+<project name="OFAC Summary Rpt" mainModule="Main" version="2.0" logLevel="verbose">
+	<variable name="Server" value="DEV" />
+	<variable name="Library" value="U4142LN" />
+</project>
+<project name="OFACSend" mainModule="Main" version="2.0" logLevel="debug">
+	<description>Create and send batch files for OFAC by parent for individuals and businesses</description>
+	<variable name="Library" value="" />
+	<variable name="Parent" value="" />
+	<variable name="Code" value="" />
+	<variable name="Server" value="" />
+	<variable name="LocalDir" value="" />
+	<variable name="Resource" value="" />
+	<variable name="Abbrev" value="" />
+	<variable name="EncryptKeyID" value="" />
+</project>
+<project name="P2Go Generic file" mainModule="Main" version="2.0" logLevel="verbose">
+	<description>Download the daily Payments 2 Go Generic file from Finastra</description>
+	<variable name="ToEmail" value="larry.neal2@farmcreditbank.com" />
+	<variable name="BaseDirectory" value="OUT_EOD_Extract" />
+	<variable name="TodaysDate" value="2026-08-06" />
+	<variable name="FilesFound" value="0" />
+</project>
+<project name="P2Go Posting file" mainModule="Main" version="2.0" logLevel="verbose">
+	<description>Download the daily Payments 2 Go Posting file from Finastra</description>
+	<variable name="ToEmail" value="larry.neal2@farmcreditbank.com" />
+	<variable name="BaseDirectory" value="OUT_EOD_Transformer" />
+	<variable name="TodaysDate" value="2026-08-06" />
+	<variable name="FilesFound" value="0" />
+</project>
+<project name="P2Gprep" mainModule="Main" version="2.0" logLevel="debug" onError="abort">
+	<description>Adhoc process to clean up files at Finastra before testing</description>
+	<variable name="StagingFolder" value="" />
+	<variable name="FileName" value="" />
+	<variable name="Resource" value="P2G UAT" />
+</project>
+<project name="Patronage Checks Cashed" mainModule="Main" version="2.0" logLevel="debug">
+	<description>Generates and Emails a CSV file for Patronage Checks Cashed by Assn Monthly</description>
+	<variable name="IFSFolder" value="/DATCOMN/Patronage/Reports/" />
+	<variable name="Email" value="DLALM@farmcreditbank.com" />
+	<variable name="Month" value="08" />
+</project>
+<project name="Payroll" mainModule="Main" version="2.0" logLevel="debug">
+	<description>Downloads one of the Payroll files from AgFirst</description>
+	<variable name="RemoteFile" value="prglee.txt" />
+	<variable name="LocalFile" value="/DATICOMN/Payroll/prglee.txt" />
+	<variable name="Resource" value="" />
+	<variable name="ArchiveDir" value="/DATCOMN/Payroll/Archive/" />
+	<variable name="Cutoff" value="2024-08-06" />
+	<variable name="Day" value="0" />
+</project>
+<project name="Q2 Paid Loans LoanIQ" mainModule="Main" version="2.0" logLevel="debug">
+	<description>Send Q2 our Daily Paid Loans Files</description>
+	<variable name="RollLibrary" value="DATROLL" />
+	<variable name="NetworkResource" value="Q2PaidLoans" />
+	<variable name="SFTPResource" value="Q2SFTP" />
+	<variable name="EffDate" value="2026-08-05" />
+	<variable name="Cutoff" value="2026-05-06" />
+</project>
+<project name="SendEmail" mainModule="Main" version="1.0" logLevel="verbose">
+	<description>Send Email - from, to, subject, body as IFS file, and list of attachments </description>
+	<variable name="SMTPServer" value="binky.nterprise.net" />
+	<variable name="FromAddress" value="DEV@farmcreditbank.com" />
+	<variable name="ToAddress" value="Geoffrey.Neale@FarmCreditBank.com" />
+	<variable name="SubjectLine" value="Testing How To Do This" />
+	<variable name="EmailBody" value="none" />
+	<variable name="Attachment1" value="none" />
+	<variable name="Attachment2" value="none" />
+	<variable name="Attachment3" value="none" />
+	<variable name="Attachment4" value="none" />
+	<variable name="Attachment5" value="none" />
+	<variable name="Attachment6" value="none" />
+	<variable name="Attachment7" value="none" />
+	<variable name="Attachment8" value="none" />
+	<variable name="Attachment9" value="none" />
+	<variable name="Attachment10" value="none" />
+</project>
+<project name="SFTP Process" mainModule="Main" version="1.0" logLevel="verbose" threadSafe="true">
+	<variable name="Resource" value="WellsFargo" />
+	<variable name="Direction" value="GET" />
+	<variable name="RemoteFile" value="/outbound/FARMC588_IRX_1/chckrtns2.txt" />
+	<variable name="LocalFile" value="/DATCOMN/IDDIDN/2023-01-05IDDRETURN.TXT" />
+</project>
+<project name="SFTPGetFiles" mainModule="Main" version="2.0" logLevel="debug" threadSafe="true">
+	<description>Retrieve file(s) using SFTP</description>
+	<variable name="ArchiveFolder" value="/Archive" />
+	<variable name="LocalFile" value="JPM_Previous_Day.txt" />
+	<variable name="LocalShare" value="resource:share://Controlled Disbursements Test" />
+	<variable name="LocalSubdirectory" value="/BAI_JPM" />
+	<variable name="RemoteDirectory" value="/outbound/BAI2" />
+	<variable name="RemoteFile" value="*" />
+	<variable name="Resource" value="Chase" />
+	<variable name="StagingFolder" value="/DATMCOMN/CTLDISB" />
+	<variable name="PassPhrase" value="money4nothing" />
+	<variable name="FilesFound" value="0" />
+	<variable name="FileName" value="" />
+</project>
+<project name="Tax - Create JWK" mainModule="Main" version="2.0" logLevel="verbose">
+	<description>Create and send our Tax Certificate to the IRS, must be pasted into a JSON Web Key(JWK) with their guidelines</description>
+	<variable name="pubKeyID" value="" />
+	<variable name="jwt" value="" />
+</project>
+<project name="Test" mainModule="Main" version="2.0" logLevel="verbose">
+	<variable name="Parm1" value="Parm One" />
+</project>
+<project name="TPG" mainModule="Main" version="2.0" logLevel="debug">
+	<variable name="Resource" value="TPG_DEV" />
+	<variable name="Archive" value="TPG_DevArchive" />
+	<variable name="OutputFile" value="DATCOMN.CRTPGMVRAW" />
+	<variable name="CSVfile" value="/QtrlyRptgExtract.csv" />
+	<variable name="User" value="UCSQLFIN" />
+	<variable name="Password" value="bendovr1" />
+	<variable name="Host" value="FCB" />
+</project>
+</goAnywhereMergedProjects>

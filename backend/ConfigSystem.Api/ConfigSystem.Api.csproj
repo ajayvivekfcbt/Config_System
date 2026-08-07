@@ -8,17 +8,24 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.0" />
+    <!-- Entity Framework Core - SQL Server for production -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0" />
+    <!-- Entity Framework Core - SQLite for local development, seeding, and staging -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.0" />
+    <!-- Web API -->
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
-    <!-- Override transitive SQLitePCLRaw to a build without GHSA-2m69-gcr7-jv3q -->
-    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.0" />
     <!-- AS/400 (IBM i) sign-in validation via the IBM i Access ODBC Driver -->
     <PackageReference Include="System.Data.Odbc" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <Content Include="data\*.csv" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Embed GoAnywhere XML data for seeding -->
+    <EmbeddedResource Include="data\GoAnywhereProjects.xml" />
   </ItemGroup>
 
 </Project>
