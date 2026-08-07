@@ -2,6 +2,7 @@ using ConfigSystem.Api.Data;
 using ConfigSystem.Api.Models;
 using ConfigSystem.Api.Services;
 using Microsoft.EntityFrameworkCore;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,8 +24,35 @@ builder.Services.AddScoped<ConfigResolutionService>();
 builder.Services.AddSingleton<As400AuthService>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Only the web app's origins may call the API from a browser.
+var allowedOrigins = builder.Configuration.GetSection("Api:AllowedOrigins").Get<string[]>()
+    ?? new[] { "http://localhost:5173", "http://localhost:5000" };
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
-    p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
+    p.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
+
+// Throttle callers by client IP so the API can't be hammered directly.
+var permitLimit = builder.Configuration.GetValue<int?>("Api:RateLimit:PermitLimit") ?? 100;
+var windowSeconds = builder.Configuration.GetValue<int?>("Api:RateLimit:WindowSeconds") ?? 10;
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = permitLimit,
+                Window = TimeSpan.FromSeconds(windowSeconds),
+                QueueLimit = 0,
+            }));
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            new { error = "Too many requests. Please slow down and try again shortly." }, token);
+    };
+});
 
 var app = builder.Build();
 
@@ -42,6 +70,8 @@ try
             var options = new DbContextOptionsBuilder<ConfigDbContext>().UseSqlite(connectionString).Options;
             using var db = new ConfigDbContext(options);
             db.Database.EnsureCreated();
+            // Parameter templates were removed; drop the obsolete table from older DB files.
+            db.Database.ExecuteSqlRaw(@"DROP TABLE IF EXISTS ""GAPARAM"";");
             // Prefer the real data exported from IBM i; fall back to the demo seed.
             if (!DataImporter.ImportAll(db))
                 SeedData.EnsureSeeded(db);
@@ -81,6 +111,29 @@ app.UseSwagger();
 app.UseSwaggerUI();
 app.UseSession();
 app.UseCors();
+app.UseRateLimiter();
+
+// Gate every /api call behind a shared app key so the endpoints can only be
+// driven by the web application, not by curl/Postman/Swagger directly.
+var appKey = app.Configuration["Api:AppKey"] ?? "config-system-web-app";
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api"))
+    {
+        var provided = context.Request.Headers["X-App-Key"].ToString();
+        if (!string.Equals(provided, appKey, StringComparison.Ordinal))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsJsonAsync(new
+            {
+                error = "Direct API access is not allowed. Requests must come from the application."
+            });
+            return;
+        }
+    }
+    await next();
+});
+
 app.MapControllers();
 
 Console.WriteLine("[STARTUP] ✓ Application ready to receive requests");

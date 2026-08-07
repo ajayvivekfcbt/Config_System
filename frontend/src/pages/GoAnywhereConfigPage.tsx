@@ -1,31 +1,24 @@
 import { useState, useEffect } from "react";
 import { getSource } from "../api";
 import "./GoAnywhereConfigPage.css";
-
-interface GAProject {
-  id: number;
-  name: string;
-  description?: string;
-  projectPath?: string;
-  extentName?: string;
-}
-
-interface GAConfig {
-  id: number;
-  configKey: string;
-  configValue?: string;
-  description?: string;
-  isRequired: boolean;
-  isSensitive: boolean;
-}
+import ProjectsTab from "./GoAnywhereProjectsTab";
+import type {
+  GAProject,
+  GAConfig,
+  AvailableParameter,
+  Environment,
+  NewProjectState,
+  NewParameterState,
+} from "./goanywhereTypes";
 
 export default function GoAnywhereConfigPage() {
   const [projects, setProjects] = useState<GAProject[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
-  const [selectedEnvironment, setSelectedEnvironment] = useState<"DATO" | "DATI" | "DATU" | "DATV" | "DATN" | "FCB">(
+  const [selectedEnvironment, setSelectedEnvironment] = useState<Environment>(
     getSource() === "FCB" ? "FCB" : "DATO"
   );
   const [configs, setConfigs] = useState<GAConfig[]>([]);
+  const [availableParameters, setAvailableParameters] = useState<AvailableParameter[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [configSearch, setConfigSearch] = useState("");
@@ -33,8 +26,8 @@ export default function GoAnywhereConfigPage() {
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [showAddParameterForm, setShowAddParameterForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [newProject, setNewProject] = useState({ name: "", description: "" });
-  const [newParameter, setNewParameter] = useState({
+  const [newProject, setNewProject] = useState<NewProjectState>({ name: "", description: "" });
+  const [newParameter, setNewParameter] = useState<NewParameterState>({
     configKey: "",
     configValue: "",
     description: "",
@@ -62,19 +55,24 @@ export default function GoAnywhereConfigPage() {
     }
   }, [selectedProjectId, selectedEnvironment]);
 
+  // Load the master list of parameters for the selected environment
+  useEffect(() => {
+    loadAvailableParameters(selectedEnvironment);
+  }, [selectedEnvironment]);
+
   const loadProjects = async () => {
     try {
       setLoading(true);
       setError(undefined);
       const response = await fetch(`${API_BASE}/goanywhere/projects`);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to load projects: ${response.statusText}`);
       }
-      
+
       const data: GAProject[] = await response.json();
       setProjects(data);
-      
+
       // Auto-select first project if available
       if (data.length > 0 && !selectedProjectId) {
         setSelectedProjectId(data[0].id);
@@ -95,13 +93,13 @@ export default function GoAnywhereConfigPage() {
       const response = await fetch(
         `${API_BASE}/goanywhere/configs?projectId=${projectId}&environment=${environment}`
       );
-      
+
       if (!response.ok) {
         throw new Error(`Failed to load configurations (${response.status}): ${response.statusText}`);
       }
-      
+
       const data: GAConfig[] = await response.json();
-      
+
       console.log(`Loaded ${data.length} configurations for project ${projectId}`);
       setConfigs(data);
     } catch (err) {
@@ -112,6 +110,22 @@ export default function GoAnywhereConfigPage() {
       setConfigs([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAvailableParameters = async (environment: string) => {
+    try {
+      const response = await fetch(
+        `${API_BASE}/goanywhere/parameters?environment=${environment}`
+      );
+      if (!response.ok) {
+        throw new Error(`Failed to load parameters: ${response.statusText}`);
+      }
+      const data: AvailableParameter[] = await response.json();
+      setAvailableParameters(data);
+    } catch (err) {
+      console.error("Error loading available parameters:", err);
+      setAvailableParameters([]);
     }
   };
 
@@ -191,7 +205,13 @@ export default function GoAnywhereConfigPage() {
 
       await loadConfigurations(selectedProjectId, selectedEnvironment);
       setShowAddParameterForm(false);
-      setNewParameter({ configKey: "", configValue: "", description: "", isRequired: false, isSensitive: false });
+      setNewParameter({
+        configKey: "",
+        configValue: "",
+        description: "",
+        isRequired: false,
+        isSensitive: false,
+      });
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to add parameter";
       setError(errorMsg);
@@ -201,23 +221,23 @@ export default function GoAnywhereConfigPage() {
     }
   };
 
-
-
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
-  
+
   // Filter projects for search
   const filteredProjects = projectSearch.trim()
-    ? projects.filter((p) =>
-        p.name.toLowerCase().includes(projectSearch.toLowerCase()) ||
-        (p.description && p.description.toLowerCase().includes(projectSearch.toLowerCase()))
+    ? projects.filter(
+        (p) =>
+          p.name.toLowerCase().includes(projectSearch.toLowerCase()) ||
+          (p.description && p.description.toLowerCase().includes(projectSearch.toLowerCase()))
       )
     : projects;
 
   // Filter configs for search
   const filteredConfigs = configSearch.trim()
-    ? configs.filter((c) =>
-        c.configKey.toLowerCase().includes(configSearch.toLowerCase()) ||
-        (c.description && c.description.toLowerCase().includes(configSearch.toLowerCase()))
+    ? configs.filter(
+        (c) =>
+          c.configKey.toLowerCase().includes(configSearch.toLowerCase()) ||
+          (c.description && c.description.toLowerCase().includes(configSearch.toLowerCase()))
       )
     : configs;
 
@@ -225,293 +245,40 @@ export default function GoAnywhereConfigPage() {
     <div className="ga-config-container">
       <h2>🔄 GoAnywhere Configuration Management</h2>
       <p className="subtitle">
-        View configuration values for GoAnywhere projects. To edit configurations, use the <strong>Parameters</strong> page.
+        Manage GoAnywhere projects and their configuration parameters.
       </p>
 
       {error && <div className="error-message">{error}</div>}
 
-      <div className="ga-controls">
-        <div className="control-group">
-          <label htmlFor="project-search">Search Projects:</label>
-          <input
-            id="project-search"
-            type="search"
-            placeholder="Search project name..."
-            value={projectSearch}
-            onChange={(e) => setProjectSearch(e.target.value)}
-            className="search-input"
-            disabled={loading}
-          />
-        </div>
-
-        <div className="control-group">
-          <label htmlFor="project-select">Select Project:</label>
-          <select
-            id="project-select"
-            value={selectedProjectId || ""}
-            onChange={(e) => setSelectedProjectId(parseInt(e.target.value) || null)}
-            className="select-field"
-            disabled={loading}
-          >
-            <option value="">-- Choose a Project --</option>
-            {filteredProjects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-                {p.description ? ` - ${p.description}` : ""}
-              </option>
-            ))}
-          </select>
-          {projectSearch && <span className="subtle" style={{ marginTop: "4px" }}>{filteredProjects.length} of {projects.length} projects</span>}
-        </div>
-
-        <div className="control-group">
-          <label>Environment:</label>
-          <div className="env-buttons">
-            {(getSource() === "FCB" 
-              ? (["FCB"] as const)
-              : (["DATO", "DATI", "DATU", "DATV", "DATN"] as const)
-            ).map((env) => (
-              <button
-                key={env}
-                className={`env-btn ${selectedEnvironment === env ? "active" : ""}`}
-                onClick={() => setSelectedEnvironment(env)}
-                disabled={loading || !selectedProjectId}
-              >
-                {env}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="control-group">
-          <button
-            className="btn-action"
-            onClick={() => setShowNewProjectForm(true)}
-            disabled={loading || saving}
-          >
-            ➕ New Project
-          </button>
-        </div>
-      </div>
-
-      {showNewProjectForm && (
-        <div className="modal-overlay" onClick={() => setShowNewProjectForm(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>Create New GoAnywhere Project</h3>
-            <div className="form-group">
-              <label htmlFor="project-name">Project Name *</label>
-              <input
-                id="project-name"
-                type="text"
-                placeholder="e.g., MyNewProject"
-                value={newProject.name}
-                onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
-                className="form-input"
-                autoFocus
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="project-desc">Description</label>
-              <input
-                id="project-desc"
-                type="text"
-                placeholder="Optional description"
-                value={newProject.description}
-                onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
-                className="form-input"
-              />
-            </div>
-            <div className="form-buttons">
-              <button
-                className="btn-save"
-                onClick={handleCreateProject}
-                disabled={saving || !newProject.name.trim()}
-              >
-                {saving ? "Creating..." : "Create Project"}
-              </button>
-              <button
-                className="btn-cancel"
-                onClick={() => {
-                  setShowNewProjectForm(false);
-                  setNewProject({ name: "", description: "" });
-                }}
-                disabled={saving}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {selectedProjectId && selectedProject && (
-        <div className="ga-config-view">
-          <div className="project-header">
-            <h3>{selectedProject.name}</h3>
-            {selectedProject.description && <p>{selectedProject.description}</p>}
-            <p className="project-path">
-              <strong>Path:</strong> {getEnvironmentSpecificPath(selectedEnvironment)}
-            </p>
-            <span className="environment-badge">{selectedEnvironment}</span>
-          </div>
-
-          {loading ? (
-            <div className="loading">Loading configurations...</div>
-          ) : (
-            <>
-              {configs.length > 0 && (
-                <div className="search-bar">
-                  <input
-                    type="search"
-                    placeholder="Search configurations by parameter..."
-                    value={configSearch}
-                    onChange={(e) => setConfigSearch(e.target.value)}
-                    className="search"
-                  />
-                  <span className="subtle">
-                    {filteredConfigs.length} of {configs.length} configs
-                  </span>
-                </div>
-              )}
-              {filteredConfigs.length === 0 ? (
-                <div className="no-configs">
-                  <p>{configSearch ? "No matching configurations found." : "No configurations found for this project and environment."}</p>
-                  <p className="hint">📊 To manage configurations, use the <strong>Parameters</strong> page</p>
-                </div>
-              ) : (
-                <table className="config-table">
-                  <thead>
-                    <tr>
-                      <th>Parameter</th>
-                      <th>Value</th>
-                      <th>Description</th>
-                      <th>Required</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredConfigs.map((config) => (
-                      <tr key={config.id} className={config.isSensitive ? "sensitive-row" : ""}>
-                        <td className="key-column">
-                          <strong>{config.configKey}</strong>
-                        </td>
-                        <td className="value-column">
-                          <code>{config.isSensitive ? (config.configValue ? "●●●●●●●●" : "(empty)") : config.configValue || "(empty)"}</code>
-                        </td>
-                        <td className="description-column">{config.description || "-"}</td>
-                        <td className="required-column">
-                          {config.isRequired ? <span className="badge-required">Yes</span> : "-"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </>
-          )}
-
-          <div className="parameter-actions">
-            <button
-              className="btn-add-param"
-              onClick={() => setShowAddParameterForm(true)}
-              disabled={saving || loading}
-            >
-              ➕ Add Parameter
-            </button>
-          </div>
-
-          {configs.length > 0 && (
-            <div className="config-stats">
-              <p>
-                <strong>Total Configurations:</strong> {configs.length} |{" "}
-                <strong>Required:</strong> {configs.filter((c) => c.isRequired).length} |{" "}
-                <strong>Sensitive:</strong> {configs.filter((c) => c.isSensitive).length}
-              </p>
-            </div>
-          )}
-
-          {showAddParameterForm && (
-            <div className="modal-overlay" onClick={() => setShowAddParameterForm(false)}>
-              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                <h3>Add Parameter to {selectedProject?.name}</h3>
-                <p className="form-subtitle">Environment: <strong>{selectedEnvironment}</strong></p>
-                <div className="form-group">
-                  <label htmlFor="param-key">Parameter Name *</label>
-                  <input
-                    id="param-key"
-                    type="text"
-                    placeholder="e.g., ApiKey, DatabaseUrl"
-                    value={newParameter.configKey}
-                    onChange={(e) => setNewParameter({ ...newParameter, configKey: e.target.value })}
-                    className="form-input"
-                    autoFocus
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="param-value">Value</label>
-                  <input
-                    id="param-value"
-                    type={newParameter.isSensitive ? "password" : "text"}
-                    placeholder="Enter value (optional)"
-                    value={newParameter.configValue}
-                    onChange={(e) => setNewParameter({ ...newParameter, configValue: e.target.value })}
-                    className="form-input"
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="param-desc">Description *</label>
-                  <input
-                    id="param-desc"
-                    type="text"
-                    placeholder="Brief description"
-                    value={newParameter.description}
-                    onChange={(e) => setNewParameter({ ...newParameter, description: e.target.value })}
-                    className="form-input"
-                  />
-                </div>
-                <div className="form-group-checkbox">
-                  <label htmlFor="param-required">
-                    <input
-                      id="param-required"
-                      type="checkbox"
-                      checked={newParameter.isRequired}
-                      onChange={(e) => setNewParameter({ ...newParameter, isRequired: e.target.checked })}
-                    />
-                    {" "}Required
-                  </label>
-                  <label htmlFor="param-sensitive">
-                    <input
-                      id="param-sensitive"
-                      type="checkbox"
-                      checked={newParameter.isSensitive}
-                      onChange={(e) => setNewParameter({ ...newParameter, isSensitive: e.target.checked })}
-                    />
-                    {" "}Sensitive (password, key, token, etc.)
-                  </label>
-                </div>
-                <div className="form-buttons">
-                  <button
-                    className="btn-save"
-                    onClick={handleAddParameter}
-                    disabled={saving || !newParameter.configKey.trim() || !newParameter.description.trim()}
-                  >
-                    {saving ? "Adding..." : "Add Parameter"}
-                  </button>
-                  <button
-                    className="btn-cancel"
-                    onClick={() => {
-                      setShowAddParameterForm(false);
-                      setNewParameter({ configKey: "", configValue: "", description: "", isRequired: false, isSensitive: false });
-                    }}
-                    disabled={saving}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      <ProjectsTab
+        loading={loading}
+        saving={saving}
+        projects={projects}
+        filteredProjects={filteredProjects}
+        projectSearch={projectSearch}
+        setProjectSearch={setProjectSearch}
+        selectedProjectId={selectedProjectId}
+        setSelectedProjectId={setSelectedProjectId}
+        selectedProject={selectedProject}
+        selectedEnvironment={selectedEnvironment}
+        setSelectedEnvironment={setSelectedEnvironment}
+        configs={configs}
+        filteredConfigs={filteredConfigs}
+        configSearch={configSearch}
+        setConfigSearch={setConfigSearch}
+        getEnvironmentSpecificPath={getEnvironmentSpecificPath}
+        showNewProjectForm={showNewProjectForm}
+        setShowNewProjectForm={setShowNewProjectForm}
+        newProject={newProject}
+        setNewProject={setNewProject}
+        handleCreateProject={handleCreateProject}
+        showAddParameterForm={showAddParameterForm}
+        setShowAddParameterForm={setShowAddParameterForm}
+        newParameter={newParameter}
+        setNewParameter={setNewParameter}
+        handleAddParameter={handleAddParameter}
+        availableParameters={availableParameters}
+      />
     </div>
   );
 }

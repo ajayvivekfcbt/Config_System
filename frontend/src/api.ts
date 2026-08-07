@@ -72,7 +72,7 @@ export const api = {
   authStatus: () =>
     http<{ isAuthenticated: boolean; userId?: string }>("GET", `/auth/status`),
   login: (userId: string, password: string) =>
-    http<{ userId: string }>("POST", `/login`, { userId, password }),
+    http<{ userId: string }>("POST", `/auth/login`, { userId, password }),
   refreshFcb: () =>
     http<{ staged: boolean; error?: string }>("POST", `/fcb/refresh`, {
       userId: authUserId,
