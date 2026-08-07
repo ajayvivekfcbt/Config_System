@@ -55,9 +55,12 @@ public class GoAnywhereSeeder
                 )
             ");
 
-            if (await _context.GoAnywhereProjects.AnyAsync())
+            var existingProjects = await _context.GoAnywhereProjects.CountAsync();
+            var existingConfigs = await _context.GoAnywhereConfigs.CountAsync();
+
+            if (existingProjects > 0 && existingConfigs > 0)
             {
-                Console.WriteLine("GoAnywhere configuration data already exists. Skipping seeding.");
+                Console.WriteLine($"GoAnywhere configuration data already exists ({existingProjects} projects, {existingConfigs} configs). Skipping seeding.");
                 return;
             }
 
@@ -72,9 +75,18 @@ public class GoAnywhereSeeder
                 projects = GetFallbackProjects();
             }
 
-            _context.GoAnywhereProjects.AddRange(projects);
-            await _context.SaveChangesAsync();
-            Console.WriteLine($"✓ Added {projects.Count} GoAnywhere projects from CSV");
+            // Only add new projects if none exist
+            if (existingProjects == 0)
+            {
+                _context.GoAnywhereProjects.AddRange(projects);
+                await _context.SaveChangesAsync();
+                Console.WriteLine($"✓ Added {projects.Count} GoAnywhere projects from CSV");
+            }
+            else
+            {
+                Console.WriteLine($"Projects already exist ({existingProjects}), skipping project creation");
+                projects = await _context.GoAnywhereProjects.ToListAsync();
+            }
 
             // Reload projects from database to get correct IDs
             var savedProjects = await _context.GoAnywhereProjects.ToListAsync();
@@ -170,6 +182,10 @@ public class GoAnywhereSeeder
                             
                             if (!string.IsNullOrWhiteSpace(extentName))
                             {
+                                // Determine ProjectPath based on extent ID
+                                // Production projects: 133 (APClearedChecks), 137 (APPositivePay), 146 (FRBServices), 255 (CtlDisbJPMPrev)
+                                string projectPath = GetProjectPathForExtent(extentId);
+                                
                                 projects.Add(new GoAnywhereProject
                                 {
                                     Id = projectId++,
@@ -177,7 +193,8 @@ public class GoAnywhereSeeder
                                     Description = parts.Length > 3 ? parts[3].Trim() : $"GoAnywhere Project - {extentName}",
                                     ContextId = contextId,
                                     ExtentId = extentId,
-                                    ExtentName = extentName
+                                    ExtentName = extentName,
+                                    ProjectPath = projectPath
                                 });
                             }
                         }
@@ -207,37 +224,45 @@ public class GoAnywhereSeeder
     {
         return new[]
         {
-            new GoAnywhereProject { Name = "Projects", Description = "GA Project Variables", ExtentId = 3, ExtentName = "Projects", ContextId = 3 },
-            new GoAnywhereProject { Name = "Config", Description = "Configurations", ExtentId = 28, ExtentName = "Config", ContextId = 3 },
-            new GoAnywhereProject { Name = "AgriLine", Description = "AgriLine", ExtentId = 54, ExtentName = "AgriLine", ContextId = 8 },
-            new GoAnywhereProject { Name = "WellsFargoRDC", Description = "Wells Fargo RDC", ExtentId = 101, ExtentName = "WellsFargoRDC", ContextId = 8 },
-            new GoAnywhereProject { Name = "WellsFargoRDCRtn", Description = "Wells Fargo RDC Returns", ExtentId = 102, ExtentName = "WellsFargoRDCRtn", ContextId = 8 },
-            new GoAnywhereProject { Name = "MinnMutualGET", Description = "Minnesota Mutual GET", ExtentId = 107, ExtentName = "MinnMutualGET", ContextId = 8 },
-            new GoAnywhereProject { Name = "MinnMutualPUT", Description = "Minnesota Mutual PUT", ExtentId = 108, ExtentName = "MinnMutualPUT", ContextId = 8 },
-            new GoAnywhereProject { Name = "AgriLineExc", Description = "AgriLine Exceptions", ExtentId = 110, ExtentName = "AgriLineExc", ContextId = 8 },
-            new GoAnywhereProject { Name = "PatChecksExport", Description = "Patronage Checks Export", ExtentId = 111, ExtentName = "PatChecksExport", ContextId = 8 },
-            new GoAnywhereProject { Name = "PatClearedChecks", Description = "Patronage Cleared Checks", ExtentId = 112, ExtentName = "PatClearedChecks", ContextId = 8 },
-            new GoAnywhereProject { Name = "PatPositivePay", Description = "Patronage Positive Pay", ExtentId = 114, ExtentName = "PatPositivePay", ContextId = 8 },
-            new GoAnywhereProject { Name = "PatCheckRegister", Description = "Patronage Check Register", ExtentId = 115, ExtentName = "PatCheckRegister", ContextId = 8 },
-            new GoAnywhereProject { Name = "PatClearedChecksTest", Description = "Patronage Cleared Checks Test Site", ExtentId = 116, ExtentName = "PatClearedChecksTest", ContextId = 8 },
-            new GoAnywhereProject { Name = "PatPositivePayTest", Description = "Patronage Positive Pay Test Site", ExtentId = 117, ExtentName = "PatPositivePayTest", ContextId = 8 },
-            new GoAnywhereProject { Name = "LNFHClearedChecksGet", Description = "Loan & Funds Held Cleared Checks Get File from JPM", ExtentId = 120, ExtentName = "LNFHClearedChecksGet", ContextId = 8 },
-            new GoAnywhereProject { Name = "LNFHPosPayPayPilot", Description = "Loan & Funds Held Positive Pay from Pay Pilot", ExtentId = 122, ExtentName = "LNFHPosPayPayPilot", ContextId = 8 },
-            new GoAnywhereProject { Name = "APClearedChecks", Description = "AP Cleared Checks", ExtentId = 133, ExtentName = "APClearedChecks", ContextId = 8 },
-            new GoAnywhereProject { Name = "OFAC", Description = "Office of Foreign Assets Control", ExtentId = 135, ExtentName = "OFAC", ContextId = 8 },
-            new GoAnywhereProject { Name = "APPositivePay", Description = "AP Positive Pay", ExtentId = 137, ExtentName = "APPositivePay", ContextId = 8 },
-            new GoAnywhereProject { Name = "APPositivePayAck", Description = "AP Positive Pay Acknowledgement", ExtentId = 136, ExtentName = "APPositivePayAck", ContextId = 8 },
-            new GoAnywhereProject { Name = "FRBServices", Description = "Federal Reserve Board Services", ExtentId = 146, ExtentName = "FRBServices", ContextId = 8 },
-            new GoAnywhereProject { Name = "Payroll", Description = "Payroll File Download from AgFirst", ExtentId = 147, ExtentName = "Payroll", ContextId = 8 },
-            new GoAnywhereProject { Name = "PayrollBEN", Description = "Payroll Benefits File Download from AgFirst", ExtentId = 148, ExtentName = "PayrollBEN", ContextId = 8 },
-            new GoAnywhereProject { Name = "PayrollUHC", Description = "Payroll UHC Benefit File Download from AgFirst", ExtentId = 149, ExtentName = "PayrollUHC", ContextId = 8 },
-            new GoAnywhereProject { Name = "PayrollANN", Description = "Payroll Annual Leave File Download from AgFirst", ExtentId = 150, ExtentName = "PayrollANN", ContextId = 8 },
-            new GoAnywhereProject { Name = "CtlDisbJPMPrev", Description = "Controlled Disbursements JPM Chase Previous Day", ExtentId = 255, ExtentName = "CtlDisbJPMPrev", ContextId = 8 },
-            new GoAnywhereProject { Name = "LockBox", Description = "LockBox Download with Wells Fargo", ExtentId = 182, ExtentName = "LockBox", ContextId = 8 },
-            new GoAnywhereProject { Name = "LockBox Processing Wells", Description = "LockBox Process Wells Fargo", ExtentId = 183, ExtentName = "LockBoxPrc", ContextId = 8 },
-            new GoAnywhereProject { Name = "EBox", Description = "EBox Processing", ExtentId = 184, ExtentName = "EBox", ContextId = 8 },
-            new GoAnywhereProject { Name = "EBox Processing Wells", Description = "EBox Process Wells Fargo", ExtentId = 185, ExtentName = "EBoxPrc", ContextId = 8 }
+            new GoAnywhereProject { Name = "Projects", Description = "GA Project Variables", ExtentId = 3, ExtentName = "Projects", ContextId = 3, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "Config", Description = "Configurations", ExtentId = 28, ExtentName = "Config", ContextId = 3, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "AgriLine", Description = "AgriLine", ExtentId = 54, ExtentName = "AgriLine", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "WellsFargoRDC", Description = "Wells Fargo RDC", ExtentId = 101, ExtentName = "WellsFargoRDC", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "WellsFargoRDCRtn", Description = "Wells Fargo RDC Returns", ExtentId = 102, ExtentName = "WellsFargoRDCRtn", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "MinnMutualGET", Description = "Minnesota Mutual GET", ExtentId = 107, ExtentName = "MinnMutualGET", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "MinnMutualPUT", Description = "Minnesota Mutual PUT", ExtentId = 108, ExtentName = "MinnMutualPUT", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "AgriLineExc", Description = "AgriLine Exceptions", ExtentId = 110, ExtentName = "AgriLineExc", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "PatChecksExport", Description = "Patronage Checks Export", ExtentId = 111, ExtentName = "PatChecksExport", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "PatClearedChecks", Description = "Patronage Cleared Checks", ExtentId = 112, ExtentName = "PatClearedChecks", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "PatPositivePay", Description = "Patronage Positive Pay", ExtentId = 114, ExtentName = "PatPositivePay", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "PatCheckRegister", Description = "Patronage Check Register", ExtentId = 115, ExtentName = "PatCheckRegister", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "PatClearedChecksTest", Description = "Patronage Cleared Checks Test Site", ExtentId = 116, ExtentName = "PatClearedChecksTest", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "PatPositivePayTest", Description = "Patronage Positive Pay Test Site", ExtentId = 117, ExtentName = "PatPositivePayTest", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "LNFHClearedChecksGet", Description = "Loan & Funds Held Cleared Checks Get File from JPM", ExtentId = 120, ExtentName = "LNFHClearedChecksGet", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "LNFHPosPayPayPilot", Description = "Loan & Funds Held Positive Pay from Pay Pilot", ExtentId = 122, ExtentName = "LNFHPosPayPayPilot", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "APClearedChecks", Description = "AP Cleared Checks", ExtentId = 133, ExtentName = "APClearedChecks", ContextId = 8, ProjectPath = "/production" },
+            new GoAnywhereProject { Name = "OFAC", Description = "Office of Foreign Assets Control", ExtentId = 135, ExtentName = "OFAC", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "APPositivePay", Description = "AP Positive Pay", ExtentId = 137, ExtentName = "APPositivePay", ContextId = 8, ProjectPath = "/production" },
+            new GoAnywhereProject { Name = "APPositivePayAck", Description = "AP Positive Pay Acknowledgement", ExtentId = 136, ExtentName = "APPositivePayAck", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "FRBServices", Description = "Federal Reserve Board Services", ExtentId = 146, ExtentName = "FRBServices", ContextId = 8, ProjectPath = "/production" },
+            new GoAnywhereProject { Name = "Payroll", Description = "Payroll File Download from AgFirst", ExtentId = 147, ExtentName = "Payroll", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "PayrollBEN", Description = "Payroll Benefits File Download from AgFirst", ExtentId = 148, ExtentName = "PayrollBEN", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "PayrollUHC", Description = "Payroll UHC Benefit File Download from AgFirst", ExtentId = 149, ExtentName = "PayrollUHC", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "PayrollANN", Description = "Payroll Annual Leave File Download from AgFirst", ExtentId = 150, ExtentName = "PayrollANN", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "CtlDisbJPMPrev", Description = "Controlled Disbursements JPM Chase Previous Day", ExtentId = 255, ExtentName = "CtlDisbJPMPrev", ContextId = 8, ProjectPath = "/production" },
+            new GoAnywhereProject { Name = "LockBox", Description = "LockBox Download with Wells Fargo", ExtentId = 182, ExtentName = "LockBox", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "LockBox Processing Wells", Description = "LockBox Process Wells Fargo", ExtentId = 183, ExtentName = "LockBoxPrc", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "EBox", Description = "EBox Processing", ExtentId = 184, ExtentName = "EBox", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "EBox Processing Wells", Description = "EBox Process Wells Fargo", ExtentId = 185, ExtentName = "EBoxPrc", ContextId = 8, ProjectPath = "/betatest" },
+            new GoAnywhereProject { Name = "TestAPI", Description = "Test API call with Params", ExtentId = 300, ExtentName = "TestAPI", ContextId = 8, ProjectPath = "/betatest" }
         }.ToList();
+    }
+
+    private string GetProjectPathForExtent(int extentId)
+    {
+        // Production projects based on ExtentId
+        var productionExtents = new[] { 133, 137, 146, 255 };
+        return productionExtents.Contains(extentId) ? "/production" : "/betatest";
     }
 
     private List<GoAnywhereConfig> SeedConfigurations(GoAnywhereProject[] projects)
@@ -335,39 +360,46 @@ public class GoAnywhereSeeder
 
                 if (projectVdfs.Count == 0)
                 {
-                    // Don't spam console for fallback configs
                     continue;
                 }
 
-                Console.WriteLine($"Project {project.Name} (Extent {project.ExtentId}): {projectVdfs.Count} VDFs");
+                Console.WriteLine($"Project {project.Name} (Extent {project.ExtentId}): {projectVdfs.Count} parameters");
 
-                // Add configurations for each VDF parameter
+                // Add configurations for each VDF parameter (only if value exists)
                 foreach (var (vdfId, _, paramName) in projectVdfs)
                 {
-                    // Group scope values by environment to avoid duplicates
-                    var scopesByEnv = scopeToEnvironment
-                        .GroupBy(x => x.Value)
-                        .ToDictionary(g => g.Key, g => g.Select(x => x.Key).ToList());
-
-                    foreach (var (env, scopes) in scopesByEnv)
+                    // Create config entries for all environments
+                    foreach (var env in new[] { "DATO", "DATI", "DATU", "DATV", "DATN", "FCB" })
                     {
-                        // Find first available value for any scope in this environment
-                        string? paramValue = null;
-                        foreach (var scope in scopes)
+                        var key = (project.Id, env, paramName);
+                        if (!configDict.ContainsKey(key))
                         {
-                            if (valData.TryGetValue((vdfId, scope), out var value))
-                            {
-                                paramValue = value;
-                                break;
-                            }
-                        }
+                            // Try to find a value for this parameter in this environment
+                            string? paramValue = null;
+                            
+                            var scopesForEnv = scopeToEnvironment
+                                .Where(x => x.Value == env)
+                                .Select(x => x.Key)
+                                .ToList();
 
-                        // Only add if we found a value
-                        if (!string.IsNullOrWhiteSpace(paramValue))
-                        {
-                            var key = (project.Id, env, paramName);
-                            if (!configDict.ContainsKey(key))
+                            foreach (var scope in scopesForEnv)
                             {
+                                if (valData.TryGetValue((vdfId, scope), out var value))
+                                {
+                                    paramValue = value;
+                                    break;
+                                }
+                            }
+
+                            // Only create config if we found a value (don't create empty ones)
+                            if (!string.IsNullOrWhiteSpace(paramValue))
+                            {
+                                var isSensitive = paramName.ToLower().Contains("password") || 
+                                                 paramName.ToLower().Contains("secret") ||
+                                                 paramName.ToLower().Contains("passphrase") ||
+                                                 paramName.ToLower().Contains("key") ||
+                                                 paramName.ToLower().Contains("user");
+
                                 configDict[key] = new GoAnywhereConfig
                                 {
                                     ProjectId = project.Id,
@@ -376,10 +408,7 @@ public class GoAnywhereSeeder
                                     ConfigValue = paramValue.Trim(),
                                     Description = $"{paramName} for {project.Name}",
                                     IsRequired = false,
-                                    IsSensitive = paramName.ToLower().Contains("password") || 
-                                                 paramName.ToLower().Contains("secret") ||
-                                                 paramName.ToLower().Contains("passphrase") ||
-                                                 paramName.ToLower().Contains("key")
+                                    IsSensitive = isSensitive
                                 };
                             }
                         }
@@ -388,7 +417,7 @@ public class GoAnywhereSeeder
             }
 
             configs = configDict.Values.ToList();
-            Console.WriteLine($"✓ Loaded {configs.Count} parameters from CSV files");
+            Console.WriteLine($"✓ Loaded {configs.Count} parameter values from CSV");
             return configs;
         }
         catch (Exception ex)
@@ -403,23 +432,99 @@ public class GoAnywhereSeeder
         var configs = new List<GoAnywhereConfig>();
         var environments = new[] { "DATO", "DATI", "DATU", "DATV", "DATN", "FCB" };
 
+        var parameterTemplates = new[]
+        {
+            ("LocalDirectory", "resource:smb://{project}/{env}/", false),
+            ("RemoteDirectory", "resource:ftp://ftp.{env}.example.com/{project}/", false),
+            ("ApiEndpoint", "https://api.{env}.example.com/goanywhere", false),
+            ("ApiKey", "sk-{env}-{project}-key-12345", true),
+            ("ApiSecret", "secret-{env}-{project}-value-67890", true),
+            ("RetryAttempts", "3", false),
+            ("RetryDelaySeconds", "60", false),
+            ("Timeout", "300", false),
+            ("LogLevel", "INFO", false),
+            ("EnableNotifications", "true", false),
+            ("NotificationEmail", "admin@{env}.example.com", false),
+            ("MaxConcurrentConnections", "5", false),
+            ("ProxyEnabled", "false", false),
+            ("ProxyHost", "proxy.{env}.example.com", false),
+            ("ProxyPort", "8080", false),
+            ("DatabaseHost", "db-{env}.example.com", false),
+            ("DatabasePort", "5432", false),
+            ("DatabaseName", "{project}_{env}", false),
+            ("DatabaseUser", "gauser_{env}", false),
+            ("DatabasePassword", "dbpass_{env}_{project}", true),
+            ("SSLEnabled", "true", false),
+            ("SSLCertPath", "/etc/ssl/certs/{env}/{project}.pem", false),
+            ("ArchiveEnabled", "true", false),
+            ("ArchivePath", "s3://archive-{env}/{project}/", false),
+            ("ErrorHandling", "retry_then_alert", false),
+            ("MessageFormat", "JSON", false),
+        };
+
         foreach (var project in projects)
         {
-            foreach (var env in environments)
+            // Special handling for TestAPI project
+            if (project.Name == "TestAPI")
             {
-                configs.Add(new GoAnywhereConfig
+                foreach (var env in environments)
                 {
-                    ProjectId = project.Id,
-                    Environment = env,
-                    ConfigKey = "LocalDirectory",
-                    ConfigValue = $"resource:smb://{project.Name.ToLower()}/{env.ToLower()}/",
-                    Description = "Local directory path",
-                    IsRequired = false,
-                    IsSensitive = false
-                });
+                    var testApiParams = new[]
+                    {
+                        ("MailServer", "MailServer", false),
+                        ("toList", "ajayvivek.pillai@farmcreditbank.com", false),
+                        ("signingAlgorithm", "MD5", false),
+                        ("keyLocation", "KeyVault", false),
+                        ("from", "ajayvivek.pillai@farmcreditbank.com", false),
+                        ("subject", "Test", false),
+                        ("message", "Value passed as param - ${Text}", false),
+                        ("Text", "Dummy", false),
+                        ("version", "2.0", false),
+                        ("logLevel", "verbose", false)
+                    };
+
+                    foreach (var (paramName, value, isSensitive) in testApiParams)
+                    {
+                        configs.Add(new GoAnywhereConfig
+                        {
+                            ProjectId = project.Id,
+                            Environment = env,
+                            ConfigKey = paramName,
+                            ConfigValue = value,
+                            Description = $"{paramName} configuration for {project.Name}",
+                            IsRequired = paramName == "MailServer" || paramName == "toList" || paramName == "from",
+                            IsSensitive = isSensitive
+                        });
+                    }
+                }
+            }
+            else
+            {
+                // Default fallback parameters for other projects
+                foreach (var env in environments)
+                {
+                    foreach (var (paramName, template, isSensitive) in parameterTemplates)
+                    {
+                        var value = template
+                            .Replace("{project}", project.Name.ToLower())
+                            .Replace("{env}", env.ToLower());
+
+                        configs.Add(new GoAnywhereConfig
+                        {
+                            ProjectId = project.Id,
+                            Environment = env,
+                            ConfigKey = paramName,
+                            ConfigValue = value,
+                            Description = $"{paramName} configuration for {project.Name}",
+                            IsRequired = paramName.Contains("Endpoint") || paramName.Contains("Key") || paramName.Contains("Host"),
+                            IsSensitive = isSensitive
+                        });
+                    }
+                }
             }
         }
 
+        Console.WriteLine($"✓ Generated {configs.Count} fallback configurations for {projects.Length} projects");
         return configs;
     }
 

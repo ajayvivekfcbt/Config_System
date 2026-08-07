@@ -52,10 +52,10 @@ try
             if (source == "Fcb" && !Fcb400Stager.IsStaged(app.Configuration))
                 FcbSeeder.EnsureFcbServerScopes(db);
             
-            // GoAnywhere configuration seeding is disabled - use the API to add/manage projects
-            // var basePath = app.Environment.ContentRootPath; // Use application's content root
-            // var seeder = new GoAnywhereSeeder(db, basePath);
-            // await seeder.SeedAsync();
+            // Seed GoAnywhere configuration data (CSV projects + XML configurations)
+            var basePath = app.Environment.ContentRootPath; // Use application's content root
+            var seeder = new GoAnywhereSeeder(db, basePath);
+            await seeder.SeedAsync();
             
             Console.WriteLine($"[STARTUP] ✓ Source {source} initialized successfully");
         }

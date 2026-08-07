@@ -1,32 +1,16 @@
-import React from "react";
-import SplitPaneLayout from "../components/SplitPaneLayout";
-import IfsFileBrowser from "../components/IfsFileBrowser";
-import IfsFileEditor from "../components/IfsFileEditor";
+// import React from "react";
+// import IfsFileBrowser from "../components/IfsFileBrowser";
+// import IfsFileEditor from "../components/IfsFileEditor";
 
 interface IfsExplorerPageProps {
   rootPath?: string;
 }
 
-export default function IfsExplorerPage({ rootPath = "/" }: IfsExplorerPageProps) {
-  const [leftPaneWidth, setLeftPaneWidth] = React.useState(40);
-
+export default function IfsExplorerPage({  }: IfsExplorerPageProps) {
   return (
-    <div style={{ height: "100%", width: "100%" }}>
-      <SplitPaneLayout
-        left={
-          <IfsFileBrowser
-            startPath={rootPath}
-          />
-        }
-        right={
-          <IfsFileEditor
-            filePath={undefined}
-            onSave={async () => {}}
-          />
-        }
-        leftWidth={leftPaneWidth}
-        onLeftWidthChange={setLeftPaneWidth}
-      />
+    <div style={{ height: "100%", width: "100%", padding: "20px", textAlign: "center", color: "#999" }}>
+      <p>IFS Explorer - Not Yet Implemented</p>
+      <p style={{ fontSize: "12px" }}>Required components are missing.</p>
     </div>
   );
 }
