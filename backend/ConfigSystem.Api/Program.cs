@@ -209,8 +209,8 @@ app.MapPost("/api/fcb/refresh", (FcbRefreshRequest? req, HttpContext http, Confi
 Console.WriteLine("");
 Console.WriteLine("╔════════════════════════════════════════════════════════╗");
 Console.WriteLine("║  Config System API - Starting HTTP Server              ║");
-Console.WriteLine("║  Listening on: http://localhost:5198                  ║");
-Console.WriteLine("║  Swagger UI: http://localhost:5198/swagger            ║");
+Console.WriteLine("║  Listening on: http://localhost:5000                  ║");
+Console.WriteLine("║  Swagger UI: http://localhost:5000/swagger            ║");
 Console.WriteLine("║  Ready to accept requests                             ║");
 Console.WriteLine("╚════════════════════════════════════════════════════════╝");
 Console.WriteLine("");
