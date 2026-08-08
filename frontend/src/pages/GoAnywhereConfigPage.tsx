@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { getSource } from "../api";
 import "./GoAnywhereConfigPage.css";
 import ProjectsTab from "./GoAnywhereProjectsTab";
 import type {
@@ -14,9 +13,7 @@ import type {
 export default function GoAnywhereConfigPage() {
   const [projects, setProjects] = useState<GAProject[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
-  const [selectedEnvironment, setSelectedEnvironment] = useState<Environment>(
-    getSource() === "FCB" ? "FCB" : "DATO"
-  );
+  const [selectedEnvironment, setSelectedEnvironment] = useState<Environment | null>(null);
   const [configs, setConfigs] = useState<GAConfig[]>([]);
   const [availableParameters, setAvailableParameters] = useState<AvailableParameter[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,14 +47,20 @@ export default function GoAnywhereConfigPage() {
 
   // Load configurations when project or environment changes
   useEffect(() => {
-    if (selectedProjectId) {
+    if (selectedProjectId && selectedEnvironment) {
       loadConfigurations(selectedProjectId, selectedEnvironment);
+    } else {
+      setConfigs([]);
     }
   }, [selectedProjectId, selectedEnvironment]);
 
   // Load the master list of parameters for the selected environment
   useEffect(() => {
-    loadAvailableParameters(selectedEnvironment);
+    if (selectedEnvironment) {
+      loadAvailableParameters(selectedEnvironment);
+    } else {
+      setAvailableParameters([]);
+    }
   }, [selectedEnvironment]);
 
   const loadProjects = async () => {
@@ -171,6 +174,11 @@ export default function GoAnywhereConfigPage() {
       return;
     }
 
+    if (!selectedEnvironment) {
+      setError("Please select an environment first");
+      return;
+    }
+
     if (!newParameter.configKey.trim()) {
       setError("Parameter name is required");
       return;
@@ -216,6 +224,62 @@ export default function GoAnywhereConfigPage() {
       const errorMsg = err instanceof Error ? err.message : "Failed to add parameter";
       setError(errorMsg);
       console.error("Error adding parameter:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdateProjectConfig = async (configId: number, configValue: string) => {
+    try {
+      setSaving(true);
+      setError(undefined);
+
+      const response = await fetch(`${API_BASE}/goanywhere/configs/${configId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ configValue }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to update parameter: ${response.statusText}`);
+      }
+
+      if (selectedProjectId && selectedEnvironment) {
+        await loadConfigurations(selectedProjectId, selectedEnvironment);
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to update parameter";
+      setError(errorMsg);
+      console.error("Error updating parameter:", err);
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteProjectConfig = async (configId: number) => {
+    try {
+      setSaving(true);
+      setError(undefined);
+
+      const response = await fetch(`${API_BASE}/goanywhere/configs/${configId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to delete parameter: ${response.statusText}`);
+      }
+
+      if (selectedProjectId && selectedEnvironment) {
+        await loadConfigurations(selectedProjectId, selectedEnvironment);
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to delete parameter";
+      setError(errorMsg);
+      console.error("Error deleting parameter:", err);
+      throw err;
     } finally {
       setSaving(false);
     }
@@ -277,6 +341,8 @@ export default function GoAnywhereConfigPage() {
         newParameter={newParameter}
         setNewParameter={setNewParameter}
         handleAddParameter={handleAddParameter}
+        handleUpdateProjectConfig={handleUpdateProjectConfig}
+        handleDeleteProjectConfig={handleDeleteProjectConfig}
         availableParameters={availableParameters}
       />
     </div>

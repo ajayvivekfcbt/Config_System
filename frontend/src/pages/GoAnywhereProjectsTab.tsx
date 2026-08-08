@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { getSource } from "../api";
 import type {
   GAProject,
@@ -18,8 +19,8 @@ interface ProjectsTabProps {
   selectedProjectId: number | null;
   setSelectedProjectId: (id: number | null) => void;
   selectedProject: GAProject | undefined;
-  selectedEnvironment: Environment;
-  setSelectedEnvironment: (env: Environment) => void;
+  selectedEnvironment: Environment | null;
+  setSelectedEnvironment: (env: Environment | null) => void;
   configs: GAConfig[];
   filteredConfigs: GAConfig[];
   configSearch: string;
@@ -35,6 +36,8 @@ interface ProjectsTabProps {
   newParameter: NewParameterState;
   setNewParameter: (value: NewParameterState) => void;
   handleAddParameter: () => void;
+  handleUpdateProjectConfig: (configId: number, configValue: string) => Promise<void>;
+  handleDeleteProjectConfig: (configId: number) => Promise<void>;
   availableParameters: AvailableParameter[];
 }
 
@@ -65,8 +68,46 @@ export default function ProjectsTab({
   newParameter,
   setNewParameter,
   handleAddParameter,
+  handleUpdateProjectConfig,
+  handleDeleteProjectConfig,
   availableParameters,
 }: ProjectsTabProps) {
+  const [editingConfigId, setEditingConfigId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [actionConfigId, setActionConfigId] = useState<number | null>(null);
+
+  const startEdit = (config: GAConfig) => {
+    setEditingConfigId(config.id);
+    setEditValue(config.isSensitive ? "" : (config.configValue || ""));
+  };
+
+  const cancelEdit = () => {
+    setEditingConfigId(null);
+    setEditValue("");
+  };
+
+  const saveEdit = async (configId: number) => {
+    setActionConfigId(configId);
+    try {
+      await handleUpdateProjectConfig(configId, editValue);
+      cancelEdit();
+    } finally {
+      setActionConfigId(null);
+    }
+  };
+
+  const deleteConfig = async (configId: number, configKey: string) => {
+    const confirmed = window.confirm(`Delete parameter '${configKey}' from this project/environment?`);
+    if (!confirmed) return;
+
+    setActionConfigId(configId);
+    try {
+      await handleDeleteProjectConfig(configId);
+    } finally {
+      setActionConfigId(null);
+    }
+  };
+
   const environments: Environment[] =
     getSource() === "FCB"
       ? ["FCB"]
@@ -132,6 +173,11 @@ export default function ProjectsTab({
               </button>
             ))}
           </div>
+          {!selectedEnvironment && selectedProjectId && (
+            <span className="subtle" style={{ marginTop: "4px" }}>
+              Select an environment to load project parameters.
+            </span>
+          )}
         </div>
 
         <div className="control-group">
@@ -201,12 +247,16 @@ export default function ProjectsTab({
             <h3>{selectedProject.name}</h3>
             {selectedProject.description && <p>{selectedProject.description}</p>}
             <p className="project-path">
-              <strong>Path:</strong> {getEnvironmentSpecificPath(selectedEnvironment)}
+              <strong>Path:</strong> {selectedEnvironment ? getEnvironmentSpecificPath(selectedEnvironment) : "-"}
             </p>
-            <span className="environment-badge">{selectedEnvironment}</span>
+            {selectedEnvironment && <span className="environment-badge">{selectedEnvironment}</span>}
           </div>
 
-          {loading ? (
+          {!selectedEnvironment ? (
+            <div className="no-configs">
+              <p>Select an environment to view project-level parameters.</p>
+            </div>
+          ) : loading ? (
             <div className="loading">Loading configurations...</div>
           ) : (
             <>
@@ -243,6 +293,7 @@ export default function ProjectsTab({
                       <th>Value</th>
                       <th>Description</th>
                       <th>Required</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -252,17 +303,64 @@ export default function ProjectsTab({
                           <strong>{config.configKey}</strong>
                         </td>
                         <td className="value-column">
-                          <code>
-                            {config.isSensitive
-                              ? config.configValue
-                                ? "●●●●●●●●"
-                                : "(empty)"
-                              : config.configValue || "(empty)"}
-                          </code>
+                          {editingConfigId === config.id ? (
+                            <input
+                              type={config.isSensitive ? "password" : "text"}
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              className="inline-edit-input"
+                              placeholder={config.isSensitive ? "Enter new sensitive value" : "Enter value"}
+                            />
+                          ) : (
+                            <code>
+                              {config.isSensitive
+                                ? config.configValue
+                                  ? "●●●●●●●●"
+                                  : "(empty)"
+                                : config.configValue || "(empty)"}
+                            </code>
+                          )}
                         </td>
                         <td className="description-column">{config.description || "-"}</td>
                         <td className="required-column">
                           {config.isRequired ? <span className="badge-required">Yes</span> : "-"}
+                        </td>
+                        <td className="actions-column">
+                          {editingConfigId === config.id ? (
+                            <>
+                              <button
+                                className="btn-row-action btn-row-save"
+                                onClick={() => saveEdit(config.id)}
+                                disabled={saving || actionConfigId === config.id}
+                              >
+                                {actionConfigId === config.id ? "Saving..." : "Save"}
+                              </button>
+                              <button
+                                className="btn-row-action btn-row-cancel"
+                                onClick={cancelEdit}
+                                disabled={saving || actionConfigId === config.id}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                className="btn-row-action"
+                                onClick={() => startEdit(config)}
+                                disabled={saving || actionConfigId === config.id}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className="btn-row-action btn-row-delete"
+                                onClick={() => deleteConfig(config.id, config.configKey)}
+                                disabled={saving || actionConfigId === config.id}
+                              >
+                                {actionConfigId === config.id ? "Deleting..." : "Delete"}
+                              </button>
+                            </>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -276,7 +374,7 @@ export default function ProjectsTab({
             <button
               className="btn-add-param"
               onClick={() => setShowAddParameterForm(true)}
-              disabled={saving || loading}
+              disabled={saving || loading || !selectedEnvironment}
             >
               ➕ Add Parameter
             </button>

@@ -22,6 +22,7 @@ interface ParameterDetail {
     id: number;
     projectId: number;
     projectName: string;
+    environment?: string;
     projectPath: string;
     configValue: string;
     actualValue: string;
@@ -29,9 +30,20 @@ interface ParameterDetail {
   }>;
 }
 
+interface EnvironmentPreview {
+  environment: string;
+  projectCount: number;
+  currentValue: string;
+  found: boolean;
+  valueBreakdown: Array<{
+    value: string;
+    count: number;
+  }>;
+}
+
 export default function ParametersPage() {
   const [parameters, setParameters] = useState<Parameter[]>([]);
-  const [selectedEnvironment, setSelectedEnvironment] = useState<string>('DATO');
+  const [selectedEnvironment, setSelectedEnvironment] = useState<string>('');
   const [selectedEnvironments, setSelectedEnvironments] = useState<Set<string>>(new Set());
   const [selectedParameter, setSelectedParameter] = useState<Parameter | null>(null);
   const [parameterDetails, setParameterDetails] = useState<ParameterDetail | null>(null);
@@ -44,6 +56,14 @@ export default function ParametersPage() {
   const [bulkUpdateMode, setBulkUpdateMode] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [justUpdated, setJustUpdated] = useState(false);
+  const [environmentPreviews, setEnvironmentPreviews] = useState<EnvironmentPreview[]>([]);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [showEnvPreview, setShowEnvPreview] = useState(false);
+  const [selectedEnvConfigurations, setSelectedEnvConfigurations] = useState<ParameterDetail['configurations']>([]);
+  const [isSelectedEnvConfigsLoading, setIsSelectedEnvConfigsLoading] = useState(false);
+  const [editingConfigId, setEditingConfigId] = useState<number | null>(null);
+  const [rowEditValue, setRowEditValue] = useState('');
+  const [rowActionConfigId, setRowActionConfigId] = useState<number | null>(null);
 
   // Load available environments
   useEffect(() => {
@@ -54,15 +74,20 @@ export default function ParametersPage() {
   useEffect(() => {
     if (selectedEnvironment) {
       loadParameters();
+    } else {
+      setParameters([]);
+      setSelectedParameter(null);
+      setParameterDetails(null);
+      setEditValue('');
     }
   }, [selectedEnvironment]);
 
   // Initialize selectedEnvironments when environments load
   useEffect(() => {
-    if (environments.length > 0 && selectedEnvironments.size === 0) {
+    if (selectedEnvironment && selectedEnvironments.size === 0) {
       setSelectedEnvironments(new Set([selectedEnvironment]));
     }
-  }, [environments]);
+  }, [selectedEnvironment]);
 
   const loadEnvironments = async () => {
     try {
@@ -71,12 +96,16 @@ export default function ParametersPage() {
         const data: Parameter[] = await response.json();
         const envs = [...new Set(data.map((p: Parameter) => p.environment))].sort() as string[];
         setEnvironments(envs);
-        if (envs.length > 0 && !selectedEnvironment) {
-          setSelectedEnvironment(envs[0]);
-        }
       }
     } catch (error) {
       console.error('Error loading environments:', error);
+    }
+  };
+
+  const handleSelectEnvironment = (env: string) => {
+    setSelectedEnvironment(env);
+    if (!bulkUpdateMode) {
+      setSelectedEnvironments(new Set([env]));
     }
   };
 
@@ -102,6 +131,8 @@ export default function ParametersPage() {
 
   const handleParameterSelect = async (param: Parameter) => {
     setSelectedParameter(param);
+    setShowEnvPreview(false);
+    setEnvironmentPreviews([]);
     setLoading(true);
     try {
       const response = await fetch(`${API_BASE}/goanywhere/parameters/${param.configKey}/${param.environment}`);
@@ -116,6 +147,201 @@ export default function ParametersPage() {
       setMessage({ type: 'error', text: `Error: ${error}` });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getEnvironmentPreviewSummary = (detail: ParameterDetail) => {
+    if (detail.isSensitive) {
+      return {
+        currentValue: '●●●●●●●●',
+        valueBreakdown: [] as Array<{ value: string; count: number }>
+      };
+    }
+
+    const valueCountMap = new Map<string, number>();
+    for (const config of detail.configurations) {
+      const value = (config.actualValue ?? '').trim();
+      if (!value) continue;
+      valueCountMap.set(value, (valueCountMap.get(value) ?? 0) + 1);
+    }
+
+    const valueBreakdown = Array.from(valueCountMap.entries())
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => b.count - a.count);
+
+    if (valueBreakdown.length === 0) {
+      return {
+        currentValue: '—',
+        valueBreakdown
+      };
+    }
+
+    if (valueBreakdown.length === 1) {
+      return {
+        currentValue: valueBreakdown[0].value,
+        valueBreakdown
+      };
+    }
+
+    return {
+      currentValue: `Mixed (${valueBreakdown.length} values)`,
+      valueBreakdown
+    };
+  };
+
+  const handleShowEnvironmentPreview = async () => {
+    if (!selectedParameter) {
+      setMessage({ type: 'error', text: 'Select a parameter first' });
+      return;
+    }
+
+    if (selectedEnvironments.size === 0) {
+      setMessage({ type: 'error', text: 'Select at least one environment to preview current values' });
+      return;
+    }
+
+    setIsPreviewLoading(true);
+    setShowEnvPreview(true);
+
+    try {
+      const selected = Array.from(selectedEnvironments).sort();
+      const previews = await Promise.all(selected.map(async (env): Promise<EnvironmentPreview> => {
+        const response = await fetch(`${API_BASE}/goanywhere/parameters/${selectedParameter.configKey}/${env}`);
+
+        if (response.status === 404) {
+          return {
+            environment: env,
+            projectCount: 0,
+            currentValue: 'Not configured',
+            found: false,
+            valueBreakdown: []
+          };
+        }
+
+        if (!response.ok) {
+          throw new Error(`Failed to load current value for ${env}`);
+        }
+
+        const data: ParameterDetail = await response.json();
+        const previewSummary = getEnvironmentPreviewSummary(data);
+
+        return {
+          environment: env,
+          projectCount: data.projectCount,
+          currentValue: previewSummary.currentValue,
+          found: true,
+          valueBreakdown: previewSummary.valueBreakdown
+        };
+      }));
+
+      setEnvironmentPreviews(previews);
+    } catch (error) {
+      setMessage({ type: 'error', text: `Error loading environment preview: ${error}` });
+      setShowEnvPreview(false);
+      setEnvironmentPreviews([]);
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
+  const loadSelectedEnvironmentConfigurations = async (configKey: string) => {
+    if (selectedEnvironments.size === 0) {
+      setSelectedEnvConfigurations([]);
+      return;
+    }
+
+    setIsSelectedEnvConfigsLoading(true);
+    try {
+      const selected = Array.from(selectedEnvironments).sort();
+      const detailResponses = await Promise.all(selected.map(async (env) => {
+        const response = await fetch(`${API_BASE}/goanywhere/parameters/${configKey}/${env}`);
+        if (response.status === 404) return [];
+        if (!response.ok) throw new Error(`Failed to load configurations for ${env}`);
+
+        const data: ParameterDetail = await response.json();
+        return data.configurations.map((config) => ({ ...config, environment: env }));
+      }));
+
+      const merged = detailResponses
+        .flat()
+        .sort((a, b) => {
+          const envA = a.environment || '';
+          const envB = b.environment || '';
+          if (envA === envB) return a.projectName.localeCompare(b.projectName);
+          return envA.localeCompare(envB);
+        });
+
+      setSelectedEnvConfigurations(merged);
+    } catch (error) {
+      setMessage({ type: 'error', text: `Error loading selected environments: ${error}` });
+      setSelectedEnvConfigurations([]);
+    } finally {
+      setIsSelectedEnvConfigsLoading(false);
+    }
+  };
+
+  const refreshSelectedParameterData = async () => {
+    if (!selectedParameter) return;
+    await handleParameterSelect(selectedParameter);
+    await loadSelectedEnvironmentConfigurations(selectedParameter.configKey);
+    await loadParameters();
+  };
+
+  const startRowEdit = (configId: number, currentValue: string) => {
+    setEditingConfigId(configId);
+    setRowEditValue(currentValue || '');
+  };
+
+  const cancelRowEdit = () => {
+    setEditingConfigId(null);
+    setRowEditValue('');
+  };
+
+  const saveRowEdit = async (configId: number) => {
+    setRowActionConfigId(configId);
+    try {
+      const response = await fetch(`${API_BASE}/goanywhere/configs/${configId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ configValue: rowEditValue })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update project-level value');
+      }
+
+      setMessage({ type: 'success', text: '✓ Project-level value updated successfully' });
+      cancelRowEdit();
+      await refreshSelectedParameterData();
+    } catch (error) {
+      setMessage({ type: 'error', text: `Error: ${error}` });
+    } finally {
+      setRowActionConfigId(null);
+    }
+  };
+
+  const deleteRowConfig = async (configId: number, projectName: string, environment: string) => {
+    const shouldDelete = window.confirm(`Delete this parameter for ${projectName} in ${environment}?`);
+    if (!shouldDelete) return;
+
+    setRowActionConfigId(configId);
+    try {
+      const response = await fetch(`${API_BASE}/goanywhere/configs/${configId}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete project-level value');
+      }
+
+      setMessage({ type: 'success', text: '✓ Project-level value deleted successfully' });
+      await refreshSelectedParameterData();
+    } catch (error) {
+      setMessage({ type: 'error', text: `Error: ${error}` });
+    } finally {
+      setRowActionConfigId(null);
     }
   };
 
@@ -191,6 +417,8 @@ export default function ParametersPage() {
       newSet.add(env);
     }
     setSelectedEnvironments(newSet);
+    setShowEnvPreview(false);
+    setEnvironmentPreviews([]);
     if (newSet.size > 1) {
       setBulkUpdateMode(true);
     }
@@ -198,12 +426,26 @@ export default function ParametersPage() {
 
   const selectAllEnvironments = () => {
     setSelectedEnvironments(new Set(environments));
+    setShowEnvPreview(false);
+    setEnvironmentPreviews([]);
     setBulkUpdateMode(true);
   };
 
   const deselectAllEnvironments = () => {
     setSelectedEnvironments(new Set());
+    setShowEnvPreview(false);
+    setEnvironmentPreviews([]);
+    setSelectedEnvConfigurations([]);
   };
+
+  useEffect(() => {
+    if (!selectedParameter) {
+      setSelectedEnvConfigurations([]);
+      return;
+    }
+
+    loadSelectedEnvironmentConfigurations(selectedParameter.configKey);
+  }, [selectedParameter, selectedEnvironments]);
 
   const handleRefreshAllProjects = async () => {
     setIsRefreshing(true);
@@ -233,6 +475,10 @@ export default function ParametersPage() {
     p.configKey.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const configurationsToDisplay = selectedEnvironments.size > 1
+    ? selectedEnvConfigurations
+    : (parameterDetails?.configurations ?? []);
+
   return (
     <div className="parameters-page">
       <div className="parameters-container">
@@ -244,6 +490,21 @@ export default function ParametersPage() {
 
           {/* Multi-Environment Selector */}
           <div className="env-selector-panel">
+            <div className="env-selector-header env-view-header">
+              <label className="mode-label">View Environment:</label>
+              <div className="env-view-buttons">
+                {environments.map((env) => (
+                  <button
+                    key={env}
+                    className={`env-btn ${selectedEnvironment === env ? 'active' : ''}`}
+                    onClick={() => handleSelectEnvironment(env)}
+                  >
+                    {env}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="env-selector-header">
               <label className="mode-label">Update Mode:</label>
               <button 
@@ -299,7 +560,9 @@ export default function ParametersPage() {
           </div>
 
           <div className="parameters-list">
-            {loading ? (
+            {!selectedEnvironment ? (
+              <div className="empty">Select an environment to load parameters</div>
+            ) : loading ? (
               <div className="loading">Loading parameters...</div>
             ) : filteredParameters.length === 0 ? (
               <div className="empty">No parameters found</div>
@@ -360,6 +623,49 @@ export default function ParametersPage() {
                     </span>
                   ))}
                 </div>
+                <div className="preview-action-row">
+                  <button
+                    onClick={handleShowEnvironmentPreview}
+                    disabled={isPreviewLoading || selectedEnvironments.size === 0}
+                    className="btn-preview-current"
+                  >
+                    {isPreviewLoading ? 'Loading Current Values...' : 'Show Current Values by Environment'}
+                  </button>
+                </div>
+
+                {showEnvPreview && environmentPreviews.length > 0 && (
+                  <div className="env-preview-panel">
+                    <div className="env-preview-header">Current Values Before Update</div>
+                    <div className="env-preview-table">
+                      <div className="env-preview-row env-preview-row-head">
+                        <div>Environment</div>
+                        <div>Projects</div>
+                        <div>Current Value</div>
+                      </div>
+                      {environmentPreviews.map((preview) => (
+                        <div key={preview.environment} className="env-preview-row">
+                          <div>{preview.environment}</div>
+                          <div>{preview.projectCount}</div>
+                          <div>
+                            {preview.valueBreakdown.length > 1 ? (
+                              <div className="env-value-breakdown">
+                                {preview.valueBreakdown.map((entry) => (
+                                  <div key={`${preview.environment}-${entry.value}`} className="env-value-item">
+                                    <span className="env-value-text">{entry.value}</span>
+                                    <span className="env-value-count">({entry.count})</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              preview.currentValue
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="edit-group">
                   <input
                     type={parameterDetails.isSensitive ? 'password' : 'text'}
@@ -393,20 +699,73 @@ export default function ParametersPage() {
               </div>
 
               <div className="configurations-section">
-                <h4>Current Values by Project</h4>
+                <h4>Current Values by Project (Selected Environments)</h4>
                 <div className="configurations-table">
                   <div className="table-header">
                     <div className="col-project">Project</div>
+                    <div className="col-env">Environment</div>
                     <div className="col-path">Project Path</div>
                     <div className="col-value">Current Value</div>
+                    <div className="col-actions">Actions</div>
                   </div>
                   <div className="table-body">
-                    {parameterDetails.configurations.map((config) => (
+                    {isSelectedEnvConfigsLoading ? (
+                      <div className="empty">Loading selected environments...</div>
+                    ) : configurationsToDisplay.length === 0 ? (
+                      <div className="empty">No configurations found for selected environment(s)</div>
+                    ) : configurationsToDisplay.map((config) => (
                       <div key={config.id} className="table-row">
                         <div className="col-project">{config.projectName}</div>
+                        <div className="col-env">{config.environment || parameterDetails.environment}</div>
                         <div className="col-path">{config.projectPath}</div>
                         <div className="col-value">
-                          {config.isSensitive ? '●●●●●●●●' : (config.actualValue || '—')}
+                          {editingConfigId === config.id ? (
+                            <input
+                              type={config.isSensitive ? 'password' : 'text'}
+                              value={rowEditValue}
+                              onChange={(e) => setRowEditValue(e.target.value)}
+                              className="row-edit-input"
+                            />
+                          ) : (
+                            config.isSensitive ? '●●●●●●●●' : (config.actualValue || '—')
+                          )}
+                        </div>
+                        <div className="col-actions">
+                          {editingConfigId === config.id ? (
+                            <>
+                              <button
+                                className="btn-row-action btn-row-save"
+                                onClick={() => saveRowEdit(config.id)}
+                                disabled={rowActionConfigId === config.id}
+                              >
+                                {rowActionConfigId === config.id ? 'Saving...' : 'Save'}
+                              </button>
+                              <button
+                                className="btn-row-action btn-row-cancel"
+                                onClick={cancelRowEdit}
+                                disabled={rowActionConfigId === config.id}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                className="btn-row-action"
+                                onClick={() => startRowEdit(config.id, config.actualValue || '')}
+                                disabled={rowActionConfigId === config.id}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className="btn-row-action btn-row-delete"
+                                onClick={() => deleteRowConfig(config.id, config.projectName, config.environment || parameterDetails.environment)}
+                                disabled={rowActionConfigId === config.id}
+                              >
+                                {rowActionConfigId === config.id ? 'Deleting...' : 'Delete'}
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))}

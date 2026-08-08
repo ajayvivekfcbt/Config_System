@@ -671,8 +671,68 @@ public class GoAnywhereController : ControllerBase
             return StatusCode(500, new { error = ex.Message });
         }
     }
-}
 
+    /// <summary>
+    /// GET /api/goanywhere/projects/{projectName}/parameters?environment=DEV
+    /// Public read-only endpoint — returns parameters for a project identified by name.
+    /// No session or auth required; intended for external/automated callers.
+    /// </summary>
+    [HttpGet("projects/{projectName}/parameters")]
+    public async Task<ActionResult<object>> GetParametersByProjectName(
+        string projectName,
+        [FromQuery] string environment = "DEV")
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(projectName))
+                return BadRequest(new { error = "projectName is required" });
+
+            if (string.IsNullOrWhiteSpace(environment))
+                return BadRequest(new { error = "environment is required" });
+
+            var normalizedProjectName = projectName.Trim().Trim('"', '\'');
+            var normalizedEnvironment = environment.Trim().Trim('"', '\'');
+
+            var project = await _context.GoAnywhereProjects
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Name.ToLower() == normalizedProjectName.ToLower());
+
+            if (project == null)
+                return NotFound(new { error = $"Project '{normalizedProjectName}' not found" });
+
+            var configs = await _context.GoAnywhereConfigs
+                .AsNoTracking()
+                .Where(c => c.ProjectId == project.Id && c.Environment.ToLower() == normalizedEnvironment.ToLower())
+                .OrderBy(c => c.ConfigKey)
+                .Select(c => new
+                {
+                    ConfigKey = c.ConfigKey,
+                    ConfigValue = c.IsSensitive ? "●●●●●●●●" : c.ConfigValue,
+                    Description = c.Description,
+                    IsRequired = c.IsRequired,
+                    IsSensitive = c.IsSensitive
+                })
+                .ToListAsync();
+
+            _logger.LogInformation(
+                "External GET: {Count} parameters for project '{Project}' env '{Env}'",
+                configs.Count, normalizedProjectName, normalizedEnvironment);
+
+            return Ok(new
+            {
+                ProjectName = project.Name,
+                Environment = normalizedEnvironment,
+                ParameterCount = configs.Count,
+                Parameters = configs
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving parameters for project '{Project}'", projectName);
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+    }
 
 /// <summary>
 /// DTO for GoAnywhere Project

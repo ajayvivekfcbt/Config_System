@@ -9,10 +9,10 @@
 
   <ItemGroup>
     <!-- Entity Framework Core - SQL Server for production -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
     <!-- Entity Framework Core - SQLite for local development, seeding, and staging -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
     <!-- Web API -->
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
     <!-- AS/400 (IBM i) sign-in validation via the IBM i Access ODBC Driver -->

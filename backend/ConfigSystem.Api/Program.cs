@@ -2,6 +2,7 @@ using ConfigSystem.Api.Data;
 using ConfigSystem.Api.Models;
 using ConfigSystem.Api.Services;
 using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -120,6 +121,17 @@ app.Use(async (context, next) =>
 {
     if (context.Request.Path.StartsWithSegments("/api"))
     {
+        var requestPath = context.Request.Path.Value ?? string.Empty;
+        var isExternalProjectParametersGet =
+            HttpMethods.IsGet(context.Request.Method) &&
+            Regex.IsMatch(requestPath, @"^/api/goanywhere/projects/[^/]+/parameters$", RegexOptions.IgnoreCase);
+
+        if (isExternalProjectParametersGet)
+        {
+            await next();
+            return;
+        }
+
         var provided = context.Request.Headers["X-App-Key"].ToString();
         if (!string.Equals(provided, appKey, StringComparison.Ordinal))
         {
