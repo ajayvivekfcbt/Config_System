@@ -35,6 +35,49 @@ public class GoAnywhereController : ControllerBase
         return source.ToString() ?? "Dev";
     }
 
+    private string GetChangedBy()
+    {
+        Request.Headers.TryGetValue("X-User-Id", out var userId);
+        var normalized = userId.ToString()?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? "unknown" : normalized;
+    }
+
+    private void AddAuditLog(GoAnywhereConfig config, string projectName, string action, string? oldValue, string? newValue)
+    {
+        _context.GoAnywhereAuditLogs.Add(new GoAnywhereAuditLog
+        {
+            ConfigId = config.Id,
+            ProjectId = config.ProjectId,
+            ProjectName = projectName,
+            Environment = config.Environment,
+            ConfigKey = config.ConfigKey,
+            OldValue = oldValue,
+            NewValue = newValue,
+            Action = action,
+            ChangedBy = GetChangedBy(),
+            IsSensitive = config.IsSensitive,
+            ChangedAtUtc = DateTime.UtcNow
+        });
+    }
+
+    private void AddProjectAuditLog(GoAnywhereProject project, string action, string? oldValue, string? newValue)
+    {
+        _context.GoAnywhereAuditLogs.Add(new GoAnywhereAuditLog
+        {
+            ConfigId = null,
+            ProjectId = project.Id,
+            ProjectName = project.Name,
+            Environment = "N/A",
+            ConfigKey = "PROJECT",
+            OldValue = oldValue,
+            NewValue = newValue,
+            Action = action,
+            ChangedBy = GetChangedBy(),
+            IsSensitive = false,
+            ChangedAtUtc = DateTime.UtcNow
+        });
+    }
+
     /// <summary>
     /// GET /api/goanywhere/projects
     /// Retrieves all GoAnywhere projects
@@ -99,6 +142,14 @@ public class GoAnywhereController : ControllerBase
             };
 
             _context.GoAnywhereProjects.Add(project);
+            await _context.SaveChangesAsync();
+
+            AddProjectAuditLog(
+                project,
+                "CREATE_PROJECT",
+                null,
+                $"Name={project.Name}; Description={project.Description}; Path={project.ProjectPath}"
+            );
             await _context.SaveChangesAsync();
 
             _logger.LogInformation($"Created new GoAnywhere project {project.Id}: {request.Name}");
@@ -215,6 +266,9 @@ public class GoAnywhereController : ControllerBase
             _context.GoAnywhereConfigs.Add(config);
             await _context.SaveChangesAsync();
 
+            AddAuditLog(config, project.Name, "CREATE", null, config.ConfigValue);
+            await _context.SaveChangesAsync();
+
             _logger.LogInformation($"Created configuration {config.Id}: {request.ConfigKey} for project {request.ProjectId}");
 
             return CreatedAtAction(nameof(GetConfigurations), new { projectId = request.ProjectId, environment = request.Environment }, 
@@ -263,8 +317,11 @@ public class GoAnywhereController : ControllerBase
                 return Forbid("FCB /production configurations are read-only and cannot be modified");
             }
 
+            var oldValue = config.ConfigValue;
+
             config.ConfigValue = request.ConfigValue;
             config.LastModifiedDate = DateTime.UtcNow;
+            AddAuditLog(config, project.Name, "UPDATE", oldValue, request.ConfigValue);
 
             _context.GoAnywhereConfigs.Update(config);
             await _context.SaveChangesAsync();
@@ -314,6 +371,8 @@ public class GoAnywhereController : ControllerBase
                 return Forbid("FCB /production configurations are read-only and cannot be deleted");
             }
 
+            AddAuditLog(config, project.Name, "DELETE", config.ConfigValue, null);
+
             _context.GoAnywhereConfigs.Remove(config);
             await _context.SaveChangesAsync();
 
@@ -358,6 +417,64 @@ public class GoAnywhereController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving GoAnywhere summary");
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// GET /api/goanywhere/audit-logs
+    /// Returns parameter change/delete audit entries.
+    /// </summary>
+    [HttpGet("audit-logs")]
+    public async Task<ActionResult<IEnumerable<object>>> GetAuditLogs(
+        [FromQuery] string? projectName = null,
+        [FromQuery] string? environment = null,
+        [FromQuery] string? configKey = null,
+        [FromQuery] string? action = null,
+        [FromQuery] int limit = 300)
+    {
+        try
+        {
+            var safeLimit = Math.Clamp(limit, 1, 2000);
+            var query = _context.GoAnywhereAuditLogs.AsNoTracking().AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(projectName))
+                query = query.Where(a => a.ProjectName.Contains(projectName));
+
+            if (!string.IsNullOrWhiteSpace(environment))
+                query = query.Where(a => a.Environment == environment);
+
+            if (!string.IsNullOrWhiteSpace(configKey))
+                query = query.Where(a => a.ConfigKey.Contains(configKey));
+
+            if (!string.IsNullOrWhiteSpace(action))
+                query = query.Where(a => a.Action == action);
+
+            var results = await query
+                .OrderByDescending(a => a.ChangedAtUtc)
+                .Take(safeLimit)
+                .Select(a => new
+                {
+                    a.Id,
+                    a.ConfigId,
+                    a.ProjectId,
+                    a.ProjectName,
+                    a.Environment,
+                    a.ConfigKey,
+                    OldValue = a.IsSensitive && a.OldValue != null ? "●●●●●●●●" : a.OldValue,
+                    NewValue = a.IsSensitive && a.NewValue != null ? "●●●●●●●●" : a.NewValue,
+                    a.Action,
+                    a.ChangedBy,
+                    a.IsSensitive,
+                    a.ChangedAtUtc
+                })
+                .ToListAsync();
+
+            return Ok(results);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving GoAnywhere audit logs");
             return StatusCode(500, new { error = ex.Message });
         }
     }
@@ -580,6 +697,7 @@ public class GoAnywhereController : ControllerBase
 
             var configs = await _context.GoAnywhereConfigs
                 .Where(c => c.ConfigKey == configKey && c.Environment == environment)
+                .Include(c => c.Project)
                 .ToListAsync();
 
             if (!configs.Any())
@@ -588,8 +706,11 @@ public class GoAnywhereController : ControllerBase
             int updateCount = 0;
             foreach (var config in configs)
             {
+                var oldValue = config.ConfigValue;
                 config.ConfigValue = request.ConfigValue;
                 config.LastModifiedDate = DateTime.UtcNow;
+                var projectName = config.Project?.Name ?? $"Project-{config.ProjectId}";
+                AddAuditLog(config, projectName, "UPDATE", oldValue, request.ConfigValue);
                 updateCount++;
             }
 
@@ -632,6 +753,7 @@ public class GoAnywhereController : ControllerBase
 
             var configs = await _context.GoAnywhereConfigs
                 .Where(c => c.ConfigKey == configKey && request.Environments.Contains(c.Environment))
+                .Include(c => c.Project)
                 .ToListAsync();
 
             if (!configs.Any())
@@ -642,8 +764,11 @@ public class GoAnywhereController : ControllerBase
 
             foreach (var config in configs)
             {
+                var oldValue = config.ConfigValue;
                 config.ConfigValue = request.ConfigValue;
                 config.LastModifiedDate = DateTime.UtcNow;
+                var projectName = config.Project?.Name ?? $"Project-{config.ProjectId}";
+                AddAuditLog(config, projectName, "UPDATE", oldValue, request.ConfigValue);
                 updateCount++;
 
                 if (!envUpdated.ContainsKey(config.Environment))

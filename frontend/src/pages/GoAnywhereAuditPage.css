@@ -1,0 +1,129 @@
+.ga-audit-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ga-audit-header h2 {
+  margin: 0;
+  color: var(--text);
+}
+
+.ga-audit-header p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.ga-audit-filters {
+  display: grid;
+  grid-template-columns: 1.2fr 1.2fr 0.9fr 0.9fr auto;
+  gap: 8px;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.08), rgba(139, 92, 246, 0.05));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.ga-audit-filters input,
+.ga-audit-filters select {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.ga-audit-filters button {
+  border: 1px solid var(--accent);
+  background: rgba(56, 189, 248, 0.18);
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ga-audit-filters button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ga-audit-error {
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 13px;
+}
+
+.ga-audit-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: auto;
+}
+
+.ga-audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 980px;
+}
+
+.ga-audit-table th,
+.ga-audit-table td {
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text);
+  vertical-align: top;
+}
+
+.ga-audit-table th {
+  background: rgba(56, 189, 248, 0.08);
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 10px;
+}
+
+.ga-audit-table tr:hover td {
+  background: rgba(56, 189, 248, 0.05);
+}
+
+.ga-audit-table code {
+  font-family: var(--font-mono);
+  color: #dbeafe;
+}
+
+.action-pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.action-update {
+  background: rgba(56, 189, 248, 0.18);
+  color: #7dd3fc;
+}
+
+.action-delete {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+}
+
+.empty-row {
+  text-align: center;
+  color: var(--muted);
+}
+
+@media (max-width: 1100px) {
+  .ga-audit-filters {
+    grid-template-columns: 1fr;
+  }
+}

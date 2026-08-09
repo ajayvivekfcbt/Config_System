@@ -162,3 +162,22 @@ public class GoAnywhereConfig
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
     public DateTime LastModifiedDate { get; set; } = DateTime.UtcNow;
 }
+
+/// <summary>
+/// GAAUDIT - Audit trail for GoAnywhere parameter value changes and deletions.
+/// </summary>
+public class GoAnywhereAuditLog
+{
+    public int Id { get; set; }
+    public int? ConfigId { get; set; }
+    public int ProjectId { get; set; }
+    [MaxLength(100)] public string ProjectName { get; set; } = "";
+    [MaxLength(20)] public string Environment { get; set; } = "";
+    [MaxLength(100)] public string ConfigKey { get; set; } = "";
+    [MaxLength(1000)] public string? OldValue { get; set; }
+    [MaxLength(1000)] public string? NewValue { get; set; }
+    [MaxLength(30)] public string Action { get; set; } = "";
+    [MaxLength(64)] public string ChangedBy { get; set; } = "unknown";
+    public bool IsSensitive { get; set; }
+    public DateTime ChangedAtUtc { get; set; } = DateTime.UtcNow;
+}

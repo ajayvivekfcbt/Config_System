@@ -9,6 +9,7 @@ import ResolvePage from "./pages/ResolvePage";
 import LoginPage from "./pages/LoginPage";
 import GoAnywhereConfigPage from "./pages/GoAnywhereConfigPage";
 import ParametersPage from "./pages/ParametersPage";
+import GoAnywhereAuditPage from "./pages/GoAnywhereAuditPage";
 
 export default function App() {
   const loc = useLocation();
@@ -83,6 +84,9 @@ export default function App() {
             <Link className={loc.pathname === "/parameters" ? "active" : ""} to="/parameters">
               Parameters
             </Link>
+            <Link className={loc.pathname === "/goanywhere-audit" ? "active" : ""} to="/goanywhere-audit">
+              Audit Log
+            </Link>
           </div>
         </nav>
         <footer>
@@ -117,6 +121,7 @@ export default function App() {
           <Route path="/resolve" element={<ResolvePage />} />
           <Route path="/goanywhere" element={<GoAnywhereConfigPage />} />
           <Route path="/parameters" element={<ParametersPage />} />
+          <Route path="/goanywhere-audit" element={<GoAnywhereAuditPage />} />
           <Route path="/:route" element={<ListPage />} />
           <Route path="/:route/new" element={<EditPage />} />
           <Route path="/:route/:id" element={<EditPage />} />

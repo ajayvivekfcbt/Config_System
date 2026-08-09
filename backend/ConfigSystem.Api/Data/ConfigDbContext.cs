@@ -20,6 +20,7 @@ public class ConfigDbContext : DbContext
     // GoAnywhere Configuration Management
     public DbSet<GoAnywhereProject> GoAnywhereProjects => Set<GoAnywhereProject>();
     public DbSet<GoAnywhereConfig> GoAnywhereConfigs => Set<GoAnywhereConfig>();
+    public DbSet<GoAnywhereAuditLog> GoAnywhereAuditLogs => Set<GoAnywhereAuditLog>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -66,6 +67,7 @@ public class ConfigDbContext : DbContext
         // GoAnywhere Configuration tables
         b.Entity<GoAnywhereProject>().ToTable("GAPROJECT");
         b.Entity<GoAnywhereConfig>().ToTable("GACONFIG");
+        b.Entity<GoAnywhereAuditLog>().ToTable("GAAUDIT");
 
         // GoAnywhere relationships
         b.Entity<GoAnywhereConfig>()
@@ -76,5 +78,11 @@ public class ConfigDbContext : DbContext
         b.Entity<GoAnywhereConfig>()
             .HasIndex(c => new { c.ProjectId, c.Environment, c.ConfigKey })
             .IsUnique();
+
+        // Audit lookup and timeline indexes
+        b.Entity<GoAnywhereAuditLog>()
+            .HasIndex(a => a.ChangedAtUtc);
+        b.Entity<GoAnywhereAuditLog>()
+            .HasIndex(a => new { a.ProjectName, a.Environment, a.ConfigKey });
     }
 }

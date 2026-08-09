@@ -11,6 +11,10 @@ const originalFetch = window.fetch.bind(window);
 window.fetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
   const headers = new Headers(init.headers ?? {});
   headers.set("X-App-Key", APP_KEY);
+  const userId = sessionStorage.getItem("uid");
+  if (userId) {
+    headers.set("X-User-Id", userId);
+  }
   return originalFetch(input, { ...init, headers });
 };
 

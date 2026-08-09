@@ -71,6 +71,24 @@ try
             var options = new DbContextOptionsBuilder<ConfigDbContext>().UseSqlite(connectionString).Options;
             using var db = new ConfigDbContext(options);
             db.Database.EnsureCreated();
+            // Keep schema forward-compatible for existing SQLite files created before
+            // audit logging was introduced.
+            db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS ""GAAUDIT"" (
+                ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_GAAUDIT"" PRIMARY KEY AUTOINCREMENT,
+                ""ConfigId"" INTEGER NULL,
+                ""ProjectId"" INTEGER NOT NULL,
+                ""ProjectName"" TEXT NOT NULL,
+                ""Environment"" TEXT NOT NULL,
+                ""ConfigKey"" TEXT NOT NULL,
+                ""OldValue"" TEXT NULL,
+                ""NewValue"" TEXT NULL,
+                ""Action"" TEXT NOT NULL,
+                ""ChangedBy"" TEXT NOT NULL,
+                ""IsSensitive"" INTEGER NOT NULL DEFAULT 0,
+                ""ChangedAtUtc"" TEXT NOT NULL
+            );");
+            db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_GAAUDIT_ChangedAtUtc"" ON ""GAAUDIT"" (""ChangedAtUtc"");");
+            db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_GAAUDIT_ProjectName_Environment_ConfigKey"" ON ""GAAUDIT"" (""ProjectName"", ""Environment"", ""ConfigKey"");");
             // Parameter templates were removed; drop the obsolete table from older DB files.
             db.Database.ExecuteSqlRaw(@"DROP TABLE IF EXISTS ""GAPARAM"";");
             // Prefer the real data exported from IBM i; fall back to the demo seed.
