@@ -151,13 +151,6 @@ export default function ParametersPage() {
   };
 
   const getEnvironmentPreviewSummary = (detail: ParameterDetail) => {
-    if (detail.isSensitive) {
-      return {
-        currentValue: '●●●●●●●●',
-        valueBreakdown: [] as Array<{ value: string; count: number }>
-      };
-    }
-
     const valueCountMap = new Map<string, number>();
     for (const config of detail.configurations) {
       const value = (config.actualValue ?? '').trim();
@@ -668,7 +661,7 @@ export default function ParametersPage() {
 
                 <div className="edit-group">
                   <input
-                    type={parameterDetails.isSensitive ? 'password' : 'text'}
+                    type='text'
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
                     placeholder="Enter new value"
@@ -721,13 +714,13 @@ export default function ParametersPage() {
                         <div className="col-value">
                           {editingConfigId === config.id ? (
                             <input
-                              type={config.isSensitive ? 'password' : 'text'}
+                              type='text'
                               value={rowEditValue}
                               onChange={(e) => setRowEditValue(e.target.value)}
                               className="row-edit-input"
                             />
                           ) : (
-                            config.isSensitive ? '●●●●●●●●' : (config.actualValue || '—')
+                            (config.actualValue || '—')
                           )}
                         </div>
                         <div className="col-actions">

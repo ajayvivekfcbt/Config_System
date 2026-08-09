@@ -144,7 +144,11 @@ app.Use(async (context, next) =>
             HttpMethods.IsGet(context.Request.Method) &&
             Regex.IsMatch(requestPath, @"^/api/goanywhere/projects/[^/]+/parameters$", RegexOptions.IgnoreCase);
 
-        if (isExternalProjectParametersGet)
+        var isExternalProjectParametersRawGet =
+            HttpMethods.IsGet(context.Request.Method) &&
+            Regex.IsMatch(requestPath, @"^/api/goanywhere/projects/[^/]+/parameters/raw$", RegexOptions.IgnoreCase);
+
+        if (isExternalProjectParametersGet || isExternalProjectParametersRawGet)
         {
             await next();
             return;

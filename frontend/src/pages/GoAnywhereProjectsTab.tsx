@@ -78,7 +78,7 @@ export default function ProjectsTab({
 
   const startEdit = (config: GAConfig) => {
     setEditingConfigId(config.id);
-    setEditValue(config.isSensitive ? "" : (config.configValue || ""));
+    setEditValue(config.configValue || "");
   };
 
   const cancelEdit = () => {
@@ -305,19 +305,15 @@ export default function ProjectsTab({
                         <td className="value-column">
                           {editingConfigId === config.id ? (
                             <input
-                              type={config.isSensitive ? "password" : "text"}
+                              type="text"
                               value={editValue}
                               onChange={(e) => setEditValue(e.target.value)}
                               className="inline-edit-input"
-                              placeholder={config.isSensitive ? "Enter new sensitive value" : "Enter value"}
+                              placeholder="Enter value"
                             />
                           ) : (
                             <code>
-                              {config.isSensitive
-                                ? config.configValue
-                                  ? "●●●●●●●●"
-                                  : "(empty)"
-                                : config.configValue || "(empty)"}
+                              {config.configValue || "(empty)"}
                             </code>
                           )}
                         </td>

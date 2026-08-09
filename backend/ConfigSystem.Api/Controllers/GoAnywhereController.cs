@@ -11,11 +11,16 @@ public class GoAnywhereController : ControllerBase
 {
     private readonly ConfigDbContext _context;
     private readonly ILogger<GoAnywhereController> _logger;
+    private readonly IConfiguration _configuration;
 
-    public GoAnywhereController(ConfigDbContext context, ILogger<GoAnywhereController> logger)
+    public GoAnywhereController(
+        ConfigDbContext context,
+        ILogger<GoAnywhereController> logger,
+        IConfiguration configuration)
     {
         _context = context;
         _logger = logger;
+        _configuration = configuration;
     }
 
     /// <summary>
@@ -76,6 +81,16 @@ public class GoAnywhereController : ControllerBase
             IsSensitive = false,
             ChangedAtUtc = DateTime.UtcNow
         });
+    }
+
+    private bool IsExternalApiKeyValid()
+    {
+        var expected = _configuration["Api:ExternalApiKey"];
+        if (string.IsNullOrWhiteSpace(expected))
+            return false;
+
+        Request.Headers.TryGetValue("X-External-Api-Key", out var provided);
+        return string.Equals(provided.ToString(), expected, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -192,7 +207,7 @@ public class GoAnywhereController : ControllerBase
                 {
                     Id = c.Id,
                     ConfigKey = c.ConfigKey,
-                    ConfigValue = c.IsSensitive ? "●●●●●●●●" : c.ConfigValue,
+                    ConfigValue = c.ConfigValue,
                     Description = c.Description,
                     IsRequired = c.IsRequired,
                     IsSensitive = c.IsSensitive
@@ -276,7 +291,7 @@ public class GoAnywhereController : ControllerBase
                 {
                     Id = config.Id,
                     ConfigKey = config.ConfigKey,
-                    ConfigValue = config.IsSensitive ? "●●●●●●●●" : config.ConfigValue,
+                    ConfigValue = config.ConfigValue,
                     Description = config.Description,
                     IsRequired = config.IsRequired,
                     IsSensitive = config.IsSensitive
@@ -332,7 +347,7 @@ public class GoAnywhereController : ControllerBase
             {
                 Id = config.Id,
                 ConfigKey = config.ConfigKey,
-                ConfigValue = config.IsSensitive ? "●●●●●●●●" : config.ConfigValue,
+                ConfigValue = config.ConfigValue,
                 Description = config.Description,
                 IsRequired = config.IsRequired,
                 IsSensitive = config.IsSensitive
@@ -854,6 +869,70 @@ public class GoAnywhereController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving parameters for project '{Project}'", projectName);
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// GET /api/goanywhere/projects/{projectName}/parameters/raw?environment=DEV
+    /// Secure external endpoint — returns unmasked parameter values when a valid
+    /// X-External-Api-Key header is provided.
+    /// </summary>
+    [HttpGet("projects/{projectName}/parameters/raw")]
+    public async Task<ActionResult<object>> GetRawParametersByProjectName(
+        string projectName,
+        [FromQuery] string environment = "DEV")
+    {
+        try
+        {
+            if (!IsExternalApiKeyValid())
+                return StatusCode(403, new { error = "Invalid or missing X-External-Api-Key" });
+
+            if (string.IsNullOrWhiteSpace(projectName))
+                return BadRequest(new { error = "projectName is required" });
+
+            if (string.IsNullOrWhiteSpace(environment))
+                return BadRequest(new { error = "environment is required" });
+
+            var normalizedProjectName = projectName.Trim().Trim('"', '\'');
+            var normalizedEnvironment = environment.Trim().Trim('"', '\'');
+
+            var project = await _context.GoAnywhereProjects
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Name.ToLower() == normalizedProjectName.ToLower());
+
+            if (project == null)
+                return NotFound(new { error = $"Project '{normalizedProjectName}' not found" });
+
+            var configs = await _context.GoAnywhereConfigs
+                .AsNoTracking()
+                .Where(c => c.ProjectId == project.Id && c.Environment.ToLower() == normalizedEnvironment.ToLower())
+                .OrderBy(c => c.ConfigKey)
+                .Select(c => new
+                {
+                    ConfigKey = c.ConfigKey,
+                    ConfigValue = c.ConfigValue,
+                    Description = c.Description,
+                    IsRequired = c.IsRequired,
+                    IsSensitive = c.IsSensitive
+                })
+                .ToListAsync();
+
+            _logger.LogInformation(
+                "External RAW GET: {Count} parameters for project '{Project}' env '{Env}'",
+                configs.Count, normalizedProjectName, normalizedEnvironment);
+
+            return Ok(new
+            {
+                ProjectName = project.Name,
+                Environment = normalizedEnvironment,
+                ParameterCount = configs.Count,
+                Parameters = configs
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving raw parameters for project '{Project}'", projectName);
             return StatusCode(500, new { error = ex.Message });
         }
     }
