@@ -268,7 +268,7 @@ public class GoAnywhereSeeder
     private List<GoAnywhereConfig> SeedConfigurations(GoAnywhereProject[] projects)
     {
         var configs = new List<GoAnywhereConfig>();
-        var projectDict = projects.ToDictionary(p => p.ExtentId); // Use ExtentId as unique key
+        var projectDict = projects.Where(p => p.ExtentId.HasValue).ToDictionary(p => p.ExtentId!.Value);
         var configDict = new Dictionary<(int projectId, string env, string key), GoAnywhereConfig>();
 
         // Map scopes to environments
@@ -636,7 +636,7 @@ public class GoAnywhereSeeder
                     var uniqueResources = new HashSet<string>();
                     int resourceCount = 0;
 
-                    foreach (XmlAttribute attr in resourceNodes)
+                    if (resourceNodes is not null) foreach (XmlAttribute attr in resourceNodes)
                     {
                         var resourceId = attr.Value?.Trim();
                         if (!string.IsNullOrEmpty(resourceId) && uniqueResources.Add(resourceId))
@@ -1006,6 +1006,7 @@ public class GoAnywhereSeeder
 
             var projectNodes = xmlDoc.SelectNodes("//project");
             
+            if (projectNodes is null) return;
             foreach (XmlElement projectNode in projectNodes)
             {
                 var projectName = projectNode.GetAttribute("name");
@@ -1038,6 +1039,7 @@ public class GoAnywhereSeeder
 
                 // Add variables as configurations
                 var variableNodes = projectNode.SelectNodes("variable");
+                if (variableNodes is null) continue;
                 foreach (XmlElement variable in variableNodes)
                 {
                     var varName = variable.GetAttribute("name");

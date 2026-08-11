@@ -133,7 +133,9 @@ public static class Fcb400Stager
             return false;
         }
 
-        var odbcCs = $"Driver={{{driver}}};System={system};Uid={user.Trim()};Pwd={password};Naming=sql;";
+        // Strip chars that can escape or inject new key-value pairs into the ODBC connection string.
+        static string Sanitize(string v) => System.Text.RegularExpressions.Regex.Replace(v.Trim(), @"[;{}=]", string.Empty);
+        var odbcCs = $"Driver={{{driver}}};System={system};Uid={Sanitize(user)};Pwd={Sanitize(password)};Naming=sql;";
 
         try
         {

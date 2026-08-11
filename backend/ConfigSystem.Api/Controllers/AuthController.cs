@@ -35,10 +35,7 @@ public class AuthController : ControllerBase
 
         try
         {
-            // Store credentials in session for IFS operations
             HttpContext.Session.SetString("uid", request.UserId);
-            HttpContext.Session.SetString("pwd", request.Password);
-            
             _logger.LogInformation("User {UserId} logged in successfully", request.UserId);
             
             return Ok(new LoginResponse 
@@ -65,8 +62,6 @@ public class AuthController : ControllerBase
         try
         {
             HttpContext.Session.Remove("uid");
-            HttpContext.Session.Remove("pwd");
-            
             _logger.LogInformation("User logged out");
             
             return Ok(new LogoutResponse { Message = "Logout successful" });

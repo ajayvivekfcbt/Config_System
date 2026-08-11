@@ -67,7 +67,7 @@ param(
     [string]$ApiKey="9b5ead60-97b3-4c51-a474-fbd6b5b42bfe",
 
     [Parameter(Mandatory=$false)]
-    [string]$ConfigApiUrl = "http://localhost:5198/api",
+    [string]$ConfigApiUrl = "http://localhost:5000/api",
 
     [Parameter(Mandatory=$false)]
     [string]$ProjectPath = "/dev/Ajay",
@@ -80,6 +80,12 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+# Headers required by the ConfigSystem API gate
+$script:ConfigApiHeaders = @{
+    "X-App-Key"  = "config-system-web-app"
+    "X-User-Id"  = "ps-script"
+}
 
 # Handle certificate validation for older PowerShell versions
 if ($SkipCertificateCheck) {
@@ -106,8 +112,9 @@ function Test-ApiConnection {
     
     try {
         $params = @{
-            Uri    = "$Url/goanywhere/summary"
-            Method = "Get"
+            Uri     = "$Url/goanywhere/summary"
+            Method  = "Get"
+            Headers = $script:ConfigApiHeaders
             ErrorAction = "Stop"
         }
         if ($SkipCertificateCheck -and $PSVersionTable.PSVersion.Major -ge 6) {
@@ -127,8 +134,9 @@ function Get-ProjectId {
     
     try {
         $params = @{
-            Uri    = "$ConfigApiUrl/goanywhere/projects"
-            Method = "Get"
+            Uri     = "$ConfigApiUrl/goanywhere/projects"
+            Method  = "Get"
+            Headers = $script:ConfigApiHeaders
         }
         if ($SkipCertificateCheck -and $PSVersionTable.PSVersion.Major -ge 6) {
             $params["SkipCertificateCheck"] = $true
@@ -158,8 +166,9 @@ function Get-ProjectConfigurations {
     
     try {
         $params = @{
-            Uri    = "$ConfigApiUrl/goanywhere/configs?projectId=$ProjectId&environment=$Env"
-            Method = "Get"
+            Uri     = "$ConfigApiUrl/goanywhere/configs?projectId=$ProjectId&environment=$Env"
+            Method  = "Get"
+            Headers = $script:ConfigApiHeaders
         }
         if ($SkipCertificateCheck -and $PSVersionTable.PSVersion.Major -ge 6) {
             $params["SkipCertificateCheck"] = $true

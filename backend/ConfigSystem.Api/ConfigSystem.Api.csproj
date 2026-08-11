@@ -13,6 +13,8 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
     <!-- Entity Framework Core - SQLite for local development, seeding, and staging -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
+    <!-- Force the patched version of the native SQLite library (GHSA-2m69-gcr7-jv3q fixed in 2.1.12) -->
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.12" />
     <!-- Web API -->
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
     <!-- AS/400 (IBM i) sign-in validation via the IBM i Access ODBC Driver -->

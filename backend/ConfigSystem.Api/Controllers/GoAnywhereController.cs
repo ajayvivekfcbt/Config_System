@@ -535,7 +535,7 @@ public class GoAnywhereController : ControllerBase
                 .ToListAsync();
 
             var configsByProject = configsWithProjects
-                .GroupBy(c => c.Project.Name)
+                .GroupBy(c => c.Project!.Name)
                 .Select(g => new
                 {
                     ProjectName = g.Key,
@@ -629,8 +629,8 @@ public class GoAnywhereController : ControllerBase
                     ConfigKey = g.Key.ConfigKey,
                     Environment = g.Key.Environment,
                     ProjectCount = g.Select(c => c.ProjectId).Distinct().Count(),
-                    SampleValue = g.FirstOrDefault().ConfigValue,
-                    IsSensitive = g.FirstOrDefault().IsSensitive
+                    SampleValue = g.FirstOrDefault()!.ConfigValue,
+                    IsSensitive = g.FirstOrDefault()!.IsSensitive
                 })
                 .OrderBy(p => p.Environment)
                 .ThenBy(p => p.ConfigKey)
@@ -658,7 +658,7 @@ public class GoAnywhereController : ControllerBase
             var configs = await _context.GoAnywhereConfigs
                 .Where(c => c.ConfigKey == configKey && c.Environment == environment)
                 .Include(c => c.Project)
-                .OrderBy(c => c.Project.Name)
+                .OrderBy(c => c.Project!.Name)
                 .ToListAsync();
 
             if (!configs.Any())
@@ -677,8 +677,8 @@ public class GoAnywhereController : ControllerBase
                 {
                     Id = c.Id,
                     ProjectId = c.ProjectId,
-                    ProjectName = c.Project.Name,
-                    ProjectPath = c.Project.ProjectPath,
+                    ProjectName = c.Project!.Name,
+                    ProjectPath = c.Project!.ProjectPath,
                     ConfigValue = c.IsSensitive ? "●●●●●●●●" : c.ConfigValue,
                     ActualValue = c.ConfigValue,
                     IsSensitive = c.IsSensitive
@@ -767,7 +767,7 @@ public class GoAnywhereController : ControllerBase
                 return BadRequest(new { error = "At least one environment must be selected" });
 
             var configs = await _context.GoAnywhereConfigs
-                .Where(c => c.ConfigKey == configKey && request.Environments.Contains(c.Environment))
+                .Where(c => c.ConfigKey == configKey && request.Environments!.Contains(c.Environment))
                 .Include(c => c.Project)
                 .ToListAsync();
 
@@ -793,11 +793,11 @@ public class GoAnywhereController : ControllerBase
 
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation($"Updated {updateCount} configurations for parameter '{configKey}' across {request.Environments.Count} environments");
+            _logger.LogInformation($"Updated {updateCount} configurations for parameter '{configKey}' across {request.Environments!.Count} environments");
 
             return Ok(new
             {
-                Message = $"Updated {updateCount} configuration(s) across {request.Environments.Count} environment(s)",
+                Message = $"Updated {updateCount} configuration(s) across {request.Environments!.Count} environment(s)",
                 ConfigKey = configKey,
                 Environments = request.Environments,
                 NewValue = request.ConfigValue,
@@ -936,7 +936,106 @@ public class GoAnywhereController : ControllerBase
             return StatusCode(500, new { error = ex.Message });
         }
     }
+
+    // ============================================================================
+    // IBM i Configuration System Audit Logging Endpoints
+    // ============================================================================
+
+    /// <summary>
+    /// GET /api/goanywhere/ibmi/audit-logs
+    /// Returns IBM i configuration change audit entries
+    /// </summary>
+    [HttpGet("ibmi/audit-logs")]
+    public async Task<ActionResult<IEnumerable<object>>> GetIBMiAuditLogs(
+        [FromQuery] int limit = 100,
+        [FromQuery] string? scopeName = null,
+        [FromQuery] string? variableDefName = null,
+        [FromQuery] string? extentName = null,
+        [FromQuery] string? action = null)
+    {
+        try
+        {
+            var query = _context.IBMiAuditLogs.AsNoTracking().AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(scopeName))
+                query = query.Where(a => a.ScopeName.ToLower().Contains(scopeName.ToLower()));
+
+            if (!string.IsNullOrWhiteSpace(variableDefName))
+                query = query.Where(a => a.VariableDefName.ToLower().Contains(variableDefName.ToLower()));
+
+            if (!string.IsNullOrWhiteSpace(extentName))
+                query = query.Where(a => a.ExtentName.ToLower().Contains(extentName.ToLower()));
+
+            if (!string.IsNullOrWhiteSpace(action))
+                query = query.Where(a => a.Action.ToLower() == action.ToLower());
+
+            var entries = await query
+                .OrderByDescending(a => a.ChangedAtUtc)
+                .Take(limit)
+                .Select(a => new
+                {
+                    a.Id,
+                    a.ConfigId,
+                    a.VariableDefinitionId,
+                    a.ScopeId,
+                    a.ScopeName,
+                    a.VariableDefName,
+                    a.ExtentName,
+                    a.Environment,
+                    OldValue = a.IsSensitive ? "●●●●●●●●" : a.OldValue,
+                    NewValue = a.IsSensitive ? "●●●●●●●●" : a.NewValue,
+                    a.Action,
+                    a.ChangedBy,
+                    a.IsSensitive,
+                    a.ChangedAtUtc
+                })
+                .ToListAsync();
+
+            _logger.LogInformation($"Retrieved {entries.Count} IBM i audit log entries");
+            return Ok(entries);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving IBM i audit logs");
+            return StatusCode(500, new { error = ex.Message });
+        }
     }
+
+    /// <summary>
+    /// Helper method to add IBM i audit log entry
+    /// </summary>
+    private void AddIBMiAuditLog(
+        int? configId,
+        int? variableDefinitionId,
+        int? scopeId,
+        string scopeName,
+        string variableDefName,
+        string extentName,
+        string? environment,
+        string action,
+        string? oldValue,
+        string? newValue,
+        bool isSensitive)
+    {
+        _context.IBMiAuditLogs.Add(new IBMiAuditLog
+        {
+            ConfigId = configId,
+            VariableDefinitionId = variableDefinitionId,
+            ScopeId = scopeId,
+            ScopeName = scopeName,
+            VariableDefName = variableDefName,
+            ExtentName = extentName,
+            Environment = environment ?? "N/A",
+            OldValue = oldValue,
+            NewValue = newValue,
+            Action = action,
+            ChangedBy = GetChangedBy(),
+            IsSensitive = isSensitive,
+            ChangedAtUtc = DateTime.UtcNow
+        });
+    }
+    }
+
 
 /// <summary>
 /// DTO for GoAnywhere Project

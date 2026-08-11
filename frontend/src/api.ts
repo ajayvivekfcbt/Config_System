@@ -22,7 +22,7 @@ export function isReadOnly(): boolean {
 
 // Signed-in credentials kept in memory only (never persisted) so on-demand FCB
 // staging can connect to the AS/400 as the logged-in user.
-let authUserId: string | null = sessionStorage.getItem("uid");
+let authUserId: string | null = null;
 let authPassword: string | null = null;
 
 export function setAuth(userId: string, password: string) {
@@ -41,18 +41,23 @@ async function http<T>(method: string, url: string, body?: unknown): Promise<T> 
     headers: {
       "Content-Type": "application/json",
       "X-Config-Source": currentSource,
+      "X-App-Key": "config-system-web-app",
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) {
+    // Session expired or server restarted — clear local state and force re-login.
+    if (res.status === 401) {
+      sessionStorage.removeItem("uid");
+      window.location.reload();
+      return undefined as T;
+    }
     let errorMessage = `${method} ${url} failed: ${res.status} ${res.statusText}`;
     try {
       const errorData = await res.json();
-      if (errorData.message) {
-        errorMessage = errorData.message;
-      }
-    } catch (e) {
-      // If response is not JSON, use default error message
+      errorMessage = errorData.message ?? errorData.error ?? errorMessage;
+    } catch {
+      // response is not JSON; keep the default message
     }
     throw new Error(errorMessage);
   }

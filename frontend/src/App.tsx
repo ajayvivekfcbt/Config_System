@@ -10,6 +10,10 @@ import LoginPage from "./pages/LoginPage";
 import GoAnywhereConfigPage from "./pages/GoAnywhereConfigPage";
 import ParametersPage from "./pages/ParametersPage";
 import GoAnywhereAuditPage from "./pages/GoAnywhereAuditPage";
+import IBMiConfigPage from "./pages/IBMiConfigPage";
+import IBMiParametersPage from "./pages/IBMiParametersPage";
+import IBMiAuditPage from "./pages/IBMiAuditPage";
+import IBMiParametersAuditPage from "./pages/IBMiParametersAuditPage";
 
 export default function App() {
   const loc = useLocation();
@@ -58,7 +62,7 @@ export default function App() {
           {/* IBMi Config Section */}
           <div className="nav-section">
             <div className="nav-section-title">🖥️ IBMi Config</div>
-            <Link className={`primary ${loc.pathname === "/" ? "active" : ""}`} to="/">
+            <Link className={loc.pathname === "/" ? "active" : ""} to="/">
               Resolve Value
             </Link>
             <Link className={loc.pathname === "/menu" ? "active" : ""} to="/menu">
@@ -73,6 +77,9 @@ export default function App() {
                 {e.title}
               </Link>
             ))}
+            <Link className={loc.pathname === "/ibmi-parameters-audit" ? "active" : ""} to="/ibmi-parameters-audit">
+              Variables Audit Log
+            </Link>
           </div>
 
           {/* GoAnywhere Config Section */}
@@ -122,9 +129,22 @@ export default function App() {
           <Route path="/goanywhere" element={<GoAnywhereConfigPage />} />
           <Route path="/parameters" element={<ParametersPage />} />
           <Route path="/goanywhere-audit" element={<GoAnywhereAuditPage />} />
+          <Route path="/ibmi-config" element={<IBMiConfigPage />} />
+          <Route path="/ibmi-parameters" element={<IBMiParametersPage />} />
+          <Route path="/ibmi-audit" element={<IBMiAuditPage />} />
+          <Route path="/ibmi-parameters-audit" element={<IBMiParametersAuditPage />} />
           <Route path="/:route" element={<ListPage />} />
           <Route path="/:route/new" element={<EditPage />} />
           <Route path="/:route/:id" element={<EditPage />} />
+          <Route path="*" element={
+            <div style={{ padding: "2rem", textAlign: "center" }}>
+              <h2 style={{ color: "var(--danger, #c0392b)" }}>404 – Page Not Found</h2>
+              <p style={{ color: "var(--muted, #666)", marginTop: "0.5rem" }}>
+                The address <code style={{ background: "#f4f4f4", padding: "2px 6px", borderRadius: "4px" }}>{loc.pathname}</code> does not exist.
+              </p>
+              <Link to="/" style={{ marginTop: "1rem", display: "inline-block" }}>← Go to home</Link>
+            </div>
+          } />
         </Routes>
       </main>
     </div>

@@ -181,3 +181,29 @@ public class GoAnywhereAuditLog
     public bool IsSensitive { get; set; }
     public DateTime ChangedAtUtc { get; set; } = DateTime.UtcNow;
 }
+
+// ============================================================================
+// IBM i Configuration System Audit Logging
+// ============================================================================
+
+/// <summary>
+/// IBMIAUDIT - Audit trail for IBM i configuration value changes and deletions.
+/// Tracks all modifications to IBM i Configuration System (UTCFG*) parameters and values.
+/// </summary>
+public class IBMiAuditLog
+{
+    public int Id { get; set; }
+    public int? ConfigId { get; set; }  // VariableValue Id if applicable
+    public int? VariableDefinitionId { get; set; }  // VDF_ID for tracking parameter definitions
+    public int? ScopeId { get; set; }  // SCP_ID for scope context
+    [MaxLength(100)] public string ScopeName { get; set; } = "";
+    [MaxLength(100)] public string VariableDefName { get; set; } = "";  // VDF_NAME
+    [MaxLength(100)] public string ExtentName { get; set; } = "";  // XTN_NAME (project context)
+    [MaxLength(20)] public string Environment { get; set; } = "";  // DEV, TEST, PROD if applicable
+    [MaxLength(1000)] public string? OldValue { get; set; }
+    [MaxLength(1000)] public string? NewValue { get; set; }
+    [MaxLength(30)] public string Action { get; set; } = "";  // CREATE, UPDATE, DELETE
+    [MaxLength(64)] public string ChangedBy { get; set; } = "unknown";
+    public bool IsSensitive { get; set; }
+    public DateTime ChangedAtUtc { get; set; } = DateTime.UtcNow;
+}

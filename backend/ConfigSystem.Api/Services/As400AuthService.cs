@@ -1,4 +1,5 @@
 using System.Data.Odbc;
+using System.Text.RegularExpressions;
 
 namespace ConfigSystem.Api.Services;
 
@@ -18,13 +19,19 @@ public class As400AuthService
         _driver = config["Ibmi:Driver"] ?? "IBM i Access ODBC Driver";
     }
 
+    // Strip chars that can escape or inject new key-value pairs into an ODBC connection string.
+    private static string SanitizeOdbcValue(string value) =>
+        Regex.Replace(value.Trim(), @"[;{}=]", string.Empty);
+
     public (bool ok, string? error) Validate(string? userId, string? password)
     {
         if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(password))
             return (false, "User ID and password are required.");
 
+        var safeUser = SanitizeOdbcValue(userId);
+        var safePassword = SanitizeOdbcValue(password);
         var connectionString =
-            $"Driver={{{_driver}}};System={_system};Uid={userId.Trim()};Pwd={password};Naming=sql;";
+            $"Driver={{{_driver}}};System={_system};Uid={safeUser};Pwd={safePassword};Naming=sql;";
 
         try
         {

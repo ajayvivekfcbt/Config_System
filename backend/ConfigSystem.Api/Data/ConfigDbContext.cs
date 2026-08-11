@@ -21,6 +21,9 @@ public class ConfigDbContext : DbContext
     public DbSet<GoAnywhereProject> GoAnywhereProjects => Set<GoAnywhereProject>();
     public DbSet<GoAnywhereConfig> GoAnywhereConfigs => Set<GoAnywhereConfig>();
     public DbSet<GoAnywhereAuditLog> GoAnywhereAuditLogs => Set<GoAnywhereAuditLog>();
+    
+    // IBM i Configuration System Audit Logging
+    public DbSet<IBMiAuditLog> IBMiAuditLogs => Set<IBMiAuditLog>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -68,6 +71,9 @@ public class ConfigDbContext : DbContext
         b.Entity<GoAnywhereProject>().ToTable("GAPROJECT");
         b.Entity<GoAnywhereConfig>().ToTable("GACONFIG");
         b.Entity<GoAnywhereAuditLog>().ToTable("GAAUDIT");
+        
+        // IBM i Configuration System audit tables
+        b.Entity<IBMiAuditLog>().ToTable("IBMIAUDIT");
 
         // GoAnywhere relationships
         b.Entity<GoAnywhereConfig>()

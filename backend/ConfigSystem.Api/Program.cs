@@ -1,7 +1,9 @@
 using ConfigSystem.Api.Data;
 using ConfigSystem.Api.Models;
 using ConfigSystem.Api.Services;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using System.Net;
 using System.Text.RegularExpressions;
 using System.Threading.RateLimiting;
 
@@ -9,8 +11,26 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddDistributedMemoryCache();
-builder.Services.AddSession();
+builder.Services.AddSession(o =>
+{
+    o.IdleTimeout = TimeSpan.FromMinutes(30);
+    o.Cookie.HttpOnly = true;
+    o.Cookie.SameSite = SameSiteMode.Strict;
+    o.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+    o.Cookie.IsEssential = true;
+});
 builder.Services.AddControllers();
+
+// Trust the Azure App Service / reverse-proxy forwarded-IP headers from localhost only.
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    o.KnownIPNetworks.Clear();
+    o.KnownProxies.Clear();
+    // Accept forwarded IPs only from the loopback (Azure front-end sits on the same host).
+    o.KnownIPNetworks.Add(new System.Net.IPNetwork(IPAddress.Loopback, 8));
+    o.KnownIPNetworks.Add(new System.Net.IPNetwork(IPAddress.IPv6Loopback, 128));
+});
 
 // The active data source (Dev or FCB) is chosen per request via the
 // X-Config-Source header; each source maps to its own SQLite database.
@@ -89,22 +109,51 @@ try
             );");
             db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_GAAUDIT_ChangedAtUtc"" ON ""GAAUDIT"" (""ChangedAtUtc"");");
             db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_GAAUDIT_ProjectName_Environment_ConfigKey"" ON ""GAAUDIT"" (""ProjectName"", ""Environment"", ""ConfigKey"");");
+            // IBM i Configuration System audit logging table
+            db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS ""IBMIAUDIT"" (
+                ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_IBMIAUDIT"" PRIMARY KEY AUTOINCREMENT,
+                ""ConfigId"" INTEGER NULL,
+                ""VariableDefinitionId"" INTEGER NULL,
+                ""ScopeId"" INTEGER NULL,
+                ""ScopeName"" TEXT NOT NULL,
+                ""VariableDefName"" TEXT NOT NULL,
+                ""ExtentName"" TEXT NOT NULL,
+                ""Environment"" TEXT NOT NULL,
+                ""OldValue"" TEXT NULL,
+                ""NewValue"" TEXT NULL,
+                ""Action"" TEXT NOT NULL,
+                ""ChangedBy"" TEXT NOT NULL,
+                ""IsSensitive"" INTEGER NOT NULL DEFAULT 0,
+                ""ChangedAtUtc"" TEXT NOT NULL
+            );");
+            db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_IBMIAUDIT_ChangedAtUtc"" ON ""IBMIAUDIT"" (""ChangedAtUtc"");");
+            db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_IBMIAUDIT_ScopeName_VariableDefName"" ON ""IBMIAUDIT"" (""ScopeName"", ""VariableDefName"");");
             // Parameter templates were removed; drop the obsolete table from older DB files.
             db.Database.ExecuteSqlRaw(@"DROP TABLE IF EXISTS ""GAPARAM"";");
-            // Prefer the real data exported from IBM i; fall back to the demo seed.
-            if (!DataImporter.ImportAll(db))
-                SeedData.EnsureSeeded(db);
+            // Wrap all seeding in a transaction so partial failures leave the DB clean.
+            using var tx = db.Database.BeginTransaction();
+            try
+            {
+                // Prefer the real data exported from IBM i; fall back to the demo seed.
+                if (!DataImporter.ImportAll(db))
+                    SeedData.EnsureSeeded(db);
 
-            // For the FCB source, seed the local DATCOMN production clone unless the FCB
-            // data has already been staged live from the AS/400. Staging is on-demand
-            // (see POST /api/fcb/refresh), not run on every startup.
-            if (source == "Fcb" && !Fcb400Stager.IsStaged(app.Configuration))
-                FcbSeeder.EnsureFcbServerScopes(db);
-            
-            // Seed GoAnywhere configuration data (CSV projects + XML configurations)
-            var basePath = app.Environment.ContentRootPath; // Use application's content root
-            var seeder = new GoAnywhereSeeder(db, basePath);
-            await seeder.SeedAsync();
+                // For the FCB source, seed the local DATCOMN production clone unless the FCB
+                // data has already been staged live from the AS/400.
+                if (source == "Fcb" && !Fcb400Stager.IsStaged(app.Configuration))
+                    FcbSeeder.EnsureFcbServerScopes(db);
+
+                var basePath = app.Environment.ContentRootPath;
+                var seeder = new GoAnywhereSeeder(db, basePath);
+                await seeder.SeedAsync();
+
+                tx.Commit();
+            }
+            catch
+            {
+                tx.Rollback();
+                throw;
+            }
             
             Console.WriteLine($"[STARTUP] ✓ Source {source} initialized successfully");
         }
@@ -126,6 +175,17 @@ catch (Exception ex)
 }
 
 Console.WriteLine("[STARTUP] Configuring middleware...");
+// Return a generic JSON error for all unhandled exceptions — no stack traces to callers.
+app.UseExceptionHandler(err => err.Run(async ctx =>
+{
+    ctx.Response.StatusCode = StatusCodes.Status500InternalServerError;
+    ctx.Response.ContentType = "application/json";
+    await ctx.Response.WriteAsJsonAsync(new { error = "An unexpected error occurred. Please try again later." });
+}));
+app.UseForwardedHeaders();
+// Only redirect to HTTPS in production; locally the app runs on plain HTTP.
+if (!app.Environment.IsDevelopment())
+    app.UseHttpsRedirection();
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseSession();
@@ -163,6 +223,42 @@ app.Use(async (context, next) =>
                 error = "Direct API access is not allowed. Requests must come from the application."
             });
             return;
+        }
+    }
+    await next();
+});
+
+// Require an authenticated user for all /api routes except auth and public parameter reads.
+// X-App-Key check runs first so we can trust the X-User-Id header as a session fallback
+// (used to self-heal the session after a server restart without forcing a full re-login).
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api"))
+    {
+        var path = context.Request.Path.Value ?? string.Empty;
+        var isAuthRoute = path.StartsWith("/api/auth", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/api/login", StringComparison.OrdinalIgnoreCase);
+        var isPublicRead = HttpMethods.IsGet(context.Request.Method)
+            && Regex.IsMatch(path, @"^/api/goanywhere/projects/[^/]+/parameters(/raw)?$", RegexOptions.IgnoreCase);
+        if (!isAuthRoute && !isPublicRead)
+        {
+            var uid = context.Session.GetString("uid");
+            if (string.IsNullOrEmpty(uid))
+            {
+                // X-App-Key was verified above; trust the header to restore the session.
+                var headerUid = context.Request.Headers["X-User-Id"].ToString().Trim();
+                if (!string.IsNullOrEmpty(headerUid))
+                {
+                    context.Session.SetString("uid", headerUid);
+                    uid = headerUid;
+                }
+            }
+            if (string.IsNullOrEmpty(uid))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsJsonAsync(new { error = "Authentication required." });
+                return;
+            }
         }
     }
     await next();
@@ -242,8 +338,124 @@ MapCrud<VariableDefinition>(app, "variable-definitions", db => db.VariableDefini
 MapCrud<ValidValue>(app, "valid-values", db => db.ValidValues, (s, d) =>
     { d.VariableDefinitionId = s.VariableDefinitionId; d.Value = s.Value; d.Description = s.Description; d.Information = s.Information; });
 
-MapCrud<VariableValue>(app, "variable-values", db => db.VariableValues, (s, d) =>
-    { d.VariableDefinitionId = s.VariableDefinitionId; d.ScopeId = s.ScopeId; d.Value = s.Value; });
+// ---- Variable Values with Audit Logging ----
+var varValGrp = app.MapGroup("/api/variable-values").WithTags("variable-values");
+
+varValGrp.MapGet("/", async (ConfigDbContext db) => 
+    await db.VariableValues.AsNoTracking().Select(v => new { v.Id, v.VariableDefinitionId, v.ScopeId, v.Value }).ToListAsync());
+
+varValGrp.MapGet("/{id:int}", async (int id, ConfigDbContext db) =>
+{
+    var v = await db.VariableValues.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+    return v != null ? Results.Ok(new { v.Id, v.VariableDefinitionId, v.ScopeId, v.Value }) : Results.NotFound();
+});
+
+varValGrp.MapPost("/", async (VariableValue input, HttpContext http, ConfigDbContext db) =>
+{
+    if (ConfigSource.IsReadOnly(http)) return ReadOnlyResult();
+    
+    db.VariableValues.Add(input);
+    await db.SaveChangesAsync();
+    
+    var varDef = await db.VariableDefinitions.FindAsync(input.VariableDefinitionId);
+    var scope = await db.Scopes.FindAsync(input.ScopeId);
+    var extent = varDef != null ? await db.Extents.FindAsync(varDef.ExtentId) : null;
+    
+    var auditLog = new IBMiAuditLog
+    {
+        VariableDefinitionId = input.VariableDefinitionId,
+        ScopeId = input.ScopeId,
+        ScopeName = scope?.Name ?? "Unknown",
+        VariableDefName = varDef?.Name ?? "Unknown",
+        ExtentName = extent?.Name ?? "Unknown",
+        Environment = scope?.Name ?? "Dev",
+        OldValue = null,
+        NewValue = varDef?.ValuesAreRestricted == true ? "●●●●●●●●" : input.Value,
+        Action = "CREATE",
+        ChangedBy = http.Request.Headers["X-User-Id"].ToString().Trim() ?? "unknown",
+        IsSensitive = varDef?.ValuesAreRestricted ?? false,
+        ChangedAtUtc = DateTime.UtcNow
+    };
+    db.IBMiAuditLogs.Add(auditLog);
+    await db.SaveChangesAsync();
+    
+    var id = db.Entry(input).Property("Id").CurrentValue;
+    return Results.Created($"/api/variable-values/{id}", new { input.Id, input.VariableDefinitionId, input.ScopeId, input.Value });
+});
+
+varValGrp.MapPut("/{id:int}", async (int id, VariableValue input, HttpContext http, ConfigDbContext db) =>
+{
+    if (ConfigSource.IsReadOnly(http)) return ReadOnlyResult();
+    
+    var existing = await db.VariableValues.FindAsync(id);
+    if (existing is null) return Results.NotFound();
+    
+    var oldValue = existing.Value;
+    existing.VariableDefinitionId = input.VariableDefinitionId;
+    existing.ScopeId = input.ScopeId;
+    existing.Value = input.Value;
+    
+    await db.SaveChangesAsync();
+    
+    var varDef = await db.VariableDefinitions.FindAsync(input.VariableDefinitionId);
+    var scope = await db.Scopes.FindAsync(input.ScopeId);
+    var extent = varDef != null ? await db.Extents.FindAsync(varDef.ExtentId) : null;
+    
+    var auditLog = new IBMiAuditLog
+    {
+        VariableDefinitionId = input.VariableDefinitionId,
+        ScopeId = input.ScopeId,
+        ScopeName = scope?.Name ?? "Unknown",
+        VariableDefName = varDef?.Name ?? "Unknown",
+        ExtentName = extent?.Name ?? "Unknown",
+        Environment = scope?.Name ?? "Dev",
+        OldValue = varDef?.ValuesAreRestricted == true ? "●●●●●●●●" : oldValue,
+        NewValue = varDef?.ValuesAreRestricted == true ? "●●●●●●●●" : input.Value,
+        Action = "UPDATE",
+        ChangedBy = http.Request.Headers["X-User-Id"].ToString().Trim() ?? "unknown",
+        IsSensitive = varDef?.ValuesAreRestricted ?? false,
+        ChangedAtUtc = DateTime.UtcNow
+    };
+    db.IBMiAuditLogs.Add(auditLog);
+    await db.SaveChangesAsync();
+    
+    return Results.Ok(new { existing.Id, existing.VariableDefinitionId, existing.ScopeId, existing.Value });
+});
+
+varValGrp.MapDelete("/{id:int}", async (int id, HttpContext http, ConfigDbContext db) =>
+{
+    if (ConfigSource.IsReadOnly(http)) return ReadOnlyResult();
+    
+    var existing = await db.VariableValues.FindAsync(id);
+    if (existing is null) return Results.NotFound();
+    
+    var varDef = await db.VariableDefinitions.FindAsync(existing.VariableDefinitionId);
+    var scope = await db.Scopes.FindAsync(existing.ScopeId);
+    var extent = varDef != null ? await db.Extents.FindAsync(varDef.ExtentId) : null;
+    
+    db.VariableValues.Remove(existing);
+    await db.SaveChangesAsync();
+    
+    var auditLog = new IBMiAuditLog
+    {
+        VariableDefinitionId = existing.VariableDefinitionId,
+        ScopeId = existing.ScopeId,
+        ScopeName = scope?.Name ?? "Unknown",
+        VariableDefName = varDef?.Name ?? "Unknown",
+        ExtentName = extent?.Name ?? "Unknown",
+        Environment = scope?.Name ?? "Dev",
+        OldValue = varDef?.ValuesAreRestricted == true ? "●●●●●●●●" : existing.Value,
+        NewValue = null,
+        Action = "DELETE",
+        ChangedBy = http.Request.Headers["X-User-Id"].ToString().Trim() ?? "unknown",
+        IsSensitive = varDef?.ValuesAreRestricted ?? false,
+        ChangedAtUtc = DateTime.UtcNow
+    };
+    db.IBMiAuditLogs.Add(auditLog);
+    await db.SaveChangesAsync();
+    
+    return Results.NoContent();
+});
 
 // ---- Consumption / resolution endpoint (replaces UT2061-UT2087) ----
 app.MapGet("/api/resolve", async (string variable, string? server, string? scope, int? variableId, ConfigResolutionService svc) =>
@@ -270,9 +482,7 @@ app.MapPost("/api/login", (LoginRequest req, HttpContext http, As400AuthService 
     var (ok, error) = auth.Validate(req.UserId, req.Password);
     if (ok)
     {
-        // Store credentials in session for IFS service to use
         http.Session.SetString("uid", req.UserId);
-        http.Session.SetString("pwd", req.Password);
         return Results.Ok(new { userId = (req.UserId ?? string.Empty).Trim().ToUpperInvariant() });
     }
     return Results.Json(new { error = error ?? "Invalid credentials." }, statusCode: StatusCodes.Status401Unauthorized);
