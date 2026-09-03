@@ -20,6 +20,16 @@ export function isReadOnly(): boolean {
   return currentSource === "FCB";
 }
 
+// Whether the signed-in user is an admin. Admins may see decrypted sensitive
+// values; normal users only ever see masked placeholders.
+export function getIsAdmin(): boolean {
+  return sessionStorage.getItem("isAdmin") === "1";
+}
+
+export function setIsAdmin(isAdmin: boolean) {
+  sessionStorage.setItem("isAdmin", isAdmin ? "1" : "0");
+}
+
 // Signed-in credentials kept in memory only (never persisted) so on-demand FCB
 // staging can connect to the AS/400 as the logged-in user.
 let authUserId: string | null = null;
@@ -33,6 +43,7 @@ export function setAuth(userId: string, password: string) {
 export function clearAuth() {
   authUserId = null;
   authPassword = null;
+  sessionStorage.removeItem("isAdmin");
 }
 
 async function http<T>(method: string, url: string, body?: unknown): Promise<T> {
@@ -75,9 +86,9 @@ export const api = {
   authLogout: () =>
     http<{ message: string }>("POST", `/auth/logout`, {}),
   authStatus: () =>
-    http<{ isAuthenticated: boolean; userId?: string }>("GET", `/auth/status`),
+    http<{ isAuthenticated: boolean; userId?: string; isAdmin?: boolean }>("GET", `/auth/status`),
   login: (userId: string, password: string) =>
-    http<{ userId: string }>("POST", `/auth/login`, { userId, password }),
+    http<{ userId: string; isAdmin?: boolean }>("POST", `/auth/login`, { userId, password }),
   refreshFcb: () =>
     http<{ staged: boolean; error?: string }>("POST", `/fcb/refresh`, {
       userId: authUserId,

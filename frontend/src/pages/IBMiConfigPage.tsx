@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
+import { getIsAdmin } from '../api';
 import './IBMiConfigPage.css';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 const SYSTEM = 'IBMI';
 
 interface IBMiProject {
@@ -165,7 +166,7 @@ export default function IBMiConfigPage() {
                             <td className="config-key">{config.configKey}</td>
                             <td className="config-env">{config.environment}</td>
                             <td className="config-value">
-                              {config.isSensitive ? '●●●●●●●●' : config.configValue}
+                              {config.isSensitive && !getIsAdmin() ? '●●●●●●●●' : config.configValue}
                             </td>
                             <td className="config-type">
                               {config.isRequired ? (

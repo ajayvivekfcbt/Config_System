@@ -19,8 +19,9 @@
 
 /* Controls Section */
 .ga-controls {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
   gap: 12px;
   margin-bottom: 16px;
   background: linear-gradient(135deg, rgba(56, 189, 248, 0.05), rgba(139, 92, 246, 0.03));
@@ -33,6 +34,22 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.control-group:first-child {
+  flex: 1 1 240px;
+  max-width: 360px;
+}
+
+.control-group:nth-child(2) {
+  flex: 0 0 auto;
+}
+
+.control-group:last-child {
+  margin-left: auto;
+  flex: 0 0 auto;
 }
 
 .control-group label {
@@ -59,6 +76,50 @@
   border-color: var(--accent, #38bdf8);
   background-color: rgba(15, 23, 42, 1);
   box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+}
+
+.project-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background: var(--panel, #1e293b);
+  border: 2px solid var(--accent, #38bdf8);
+  border-radius: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.5);
+}
+
+.project-dropdown-item {
+  padding: 8px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: 1px solid var(--border, #334155);
+  transition: background 0.15s;
+}
+
+.project-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.project-dropdown-item:hover,
+.project-dropdown-item.selected {
+  background: rgba(56, 189, 248, 0.12);
+}
+
+.dropdown-project-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text, #e2e8f0);
+}
+
+.dropdown-project-desc {
+  font-size: 11px;
+  color: var(--muted, #94a3b8);
 }
 
 .btn-new-project {

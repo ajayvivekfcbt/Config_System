@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
+import { getIsAdmin } from '../api';
 import '../pages/ParametersPage.css';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 interface Parameter {
   configKey: string;
@@ -472,6 +473,10 @@ export default function ParametersPage() {
     ? selectedEnvConfigurations
     : (parameterDetails?.configurations ?? []);
 
+  // Non-admins only see masked sensitive values, so block them from editing
+  // sensitive parameters (they would otherwise overwrite the value with the mask).
+  const sensitiveLocked = !!parameterDetails?.isSensitive && !getIsAdmin();
+
   return (
     <div className="parameters-page">
       <div className="parameters-container">
@@ -662,19 +667,25 @@ export default function ParametersPage() {
                 <div className="edit-group">
                   <input
                     type='text'
-                    value={editValue}
+                    value={sensitiveLocked ? '' : editValue}
                     onChange={(e) => setEditValue(e.target.value)}
-                    placeholder="Enter new value"
+                    placeholder={sensitiveLocked ? 'Admin access required to edit' : 'Enter new value'}
                     className="edit-input"
+                    disabled={sensitiveLocked}
                   />
                   <button
                     onClick={handleUpdateParameter}
-                    disabled={isSaving}
+                    disabled={isSaving || sensitiveLocked}
                     className="btn-update"
                   >
                     {isSaving ? 'Updating...' : `Update ${bulkUpdateMode && selectedEnvironments.size > 1 ? `All (${selectedEnvironments.size})` : 'Selected'}`}
                   </button>
                 </div>
+                {sensitiveLocked && (
+                  <div className="message message-error">
+                    This is a sensitive value. Only admin users can view or edit it.
+                  </div>
+                )}
                 {message && (
                   <div className={`message message-${message.type}`}>
                     {message.text}
@@ -746,7 +757,8 @@ export default function ParametersPage() {
                               <button
                                 className="btn-row-action"
                                 onClick={() => startRowEdit(config.id, config.actualValue || '')}
-                                disabled={rowActionConfigId === config.id}
+                                disabled={rowActionConfigId === config.id || sensitiveLocked}
+                                title={sensitiveLocked ? 'Admin access required' : undefined}
                               >
                                 Edit
                               </button>

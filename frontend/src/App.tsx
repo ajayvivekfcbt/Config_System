@@ -21,6 +21,7 @@ export default function App() {
   const [source, setSourceState] = useState<Source>(() => getSource());
   const [refreshing, setRefreshing] = useState(false);
   const [, setRefreshMsg] = useState<string>();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   if (!user) {
     return (
@@ -55,8 +56,16 @@ export default function App() {
   };
 
   return (
-    <div className="layout">
-      <aside className="sidebar">
+    <div className={`layout ${sidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
+      <button 
+        className="sidebar-toggle"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        aria-label="Toggle sidebar"
+        title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+      >
+        {sidebarOpen ? "☰" : "☰"}
+      </button>
+      <aside className={`sidebar ${sidebarOpen ? "visible" : "hidden"}`}>
         <h1>Config Systems</h1>
         <nav>
           {/* IBMi Config Section */}

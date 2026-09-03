@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using ConfigSystem.Api.Models;
+using ConfigSystem.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.IO;
@@ -13,11 +14,23 @@ public class GoAnywhereSeeder
 {
     private readonly ConfigDbContext _context;
     private readonly string _basePath;
+    private readonly SensitiveValueProtector? _protector;
 
-    public GoAnywhereSeeder(ConfigDbContext context, string basePath = "")
+    public GoAnywhereSeeder(ConfigDbContext context, string basePath = "", SensitiveValueProtector? protector = null)
     {
         _context = context;
         _basePath = string.IsNullOrEmpty(basePath) ? Directory.GetCurrentDirectory() : basePath;
+        _protector = protector;
+    }
+
+    // Encrypt any sensitive config values before they are written so passwords/
+    // credentials are never persisted to the database in clear text.
+    private void ProtectSensitive(IEnumerable<GoAnywhereConfig> configs)
+    {
+        if (_protector == null) return;
+        foreach (var c in configs)
+            if (c.IsSensitive)
+                c.ConfigValue = _protector.Protect(c.ConfigValue);
     }
 
     public async Task SeedAsync()
@@ -61,6 +74,7 @@ public class GoAnywhereSeeder
             if (existingProjects > 0 && existingConfigs > 0)
             {
                 Console.WriteLine($"GoAnywhere configuration data already exists ({existingProjects} projects, {existingConfigs} configs). Skipping seeding.");
+                await PopulateDatnFromSourcesAsync();
                 return;
             }
 
@@ -119,6 +133,7 @@ public class GoAnywhereSeeder
             
             Console.WriteLine($"After deduplication: {uniqueConfigs.Count} unique configurations");
             
+            ProtectSensitive(uniqueConfigs);
             _context.GoAnywhereConfigs.AddRange(uniqueConfigs);
             await _context.SaveChangesAsync();
             Console.WriteLine($"✓ Added {uniqueConfigs.Count} configuration records");
@@ -128,6 +143,8 @@ public class GoAnywhereSeeder
 
             // Seed 48 GoAnywhere projects from XML definitions
             await SeedXmlProjectConfigurations();
+
+            await PopulateDatnFromSourcesAsync();
 
             PrintSummary(projects.ToArray());
         }
@@ -713,6 +730,7 @@ public class GoAnywhereSeeder
 
                     if (newConfigs.Count > 0)
                     {
+                        ProtectSensitive(newConfigs);
                         _context.GoAnywhereConfigs.AddRange(newConfigs);
                         await _context.SaveChangesAsync();
                         xmlConfigsAdded += newConfigs.Count;
@@ -742,6 +760,65 @@ public class GoAnywhereSeeder
         {
             Console.WriteLine($"✗ Error parsing XML files: {ex.Message}");
         }
+    }
+
+    private async Task PopulateDatnFromSourcesAsync()
+    {
+        Console.WriteLine("\n📋 Populating missing DATN values from DATO / DATU / DATV...");
+
+        var sourceEnvs = new[] { "DATO", "DATU", "DATV", "DATN" };
+        var allConfigs = await _context.GoAnywhereConfigs
+            .Where(c => sourceEnvs.Contains(c.Environment))
+            .ToListAsync();
+
+        var datnKeys = allConfigs
+            .Where(c => c.Environment == "DATN")
+            .Select(c => (c.ProjectId, c.ConfigKey))
+            .ToHashSet();
+
+        var sourceByProjectKey = allConfigs
+            .Where(c => c.Environment != "DATN")
+            .GroupBy(c => (c.ProjectId, c.ConfigKey))
+            .ToDictionary(g => g.Key, g => g.ToDictionary(c => c.Environment, c => c));
+
+        var toAdd = new List<GoAnywhereConfig>();
+
+        foreach (var ((projectId, configKey), envMap) in sourceByProjectKey)
+        {
+            if (datnKeys.Contains((projectId, configKey)))
+                continue;
+
+            // Priority: DATO → DATU → DATV
+            var source =
+                envMap.GetValueOrDefault("DATO") ??
+                envMap.GetValueOrDefault("DATU") ??
+                envMap.GetValueOrDefault("DATV");
+
+            if (source == null || string.IsNullOrWhiteSpace(source.ConfigValue))
+                continue;
+
+            toAdd.Add(new GoAnywhereConfig
+            {
+                ProjectId = projectId,
+                Environment = "DATN",
+                ConfigKey = configKey,
+                ConfigValue = source.ConfigValue,
+                Description = source.Description,
+                IsRequired = source.IsRequired,
+                IsSensitive = source.IsSensitive,
+                CreatedDate = DateTime.UtcNow,
+                LastModifiedDate = DateTime.UtcNow
+            });
+        }
+
+        if (toAdd.Count > 0)
+        {
+            ProtectSensitive(toAdd);
+            _context.GoAnywhereConfigs.AddRange(toAdd);
+            await _context.SaveChangesAsync();
+        }
+
+        Console.WriteLine($"✓ Populated {toAdd.Count} DATN entries across {toAdd.Select(c => c.ProjectId).Distinct().Count()} projects");
     }
 
     private void PrintSummary(GoAnywhereProject[] projects)
@@ -1073,6 +1150,7 @@ public class GoAnywhereSeeder
                                 IsRequired = false,
                                 IsSensitive = isSensitive
                             };
+                            ProtectSensitive(new[] { config });
                             _context.GoAnywhereConfigs.Add(config);
                             configsAdded++;
                         }

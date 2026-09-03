@@ -1,6 +1,7 @@
 using ConfigSystem.Api.Data;
 using ConfigSystem.Api.Models;
 using ConfigSystem.Api.Services;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
@@ -43,6 +44,18 @@ builder.Services.AddDbContext<ConfigDbContext>((sp, o) =>
 });
 builder.Services.AddScoped<ConfigResolutionService>();
 builder.Services.AddSingleton<As400AuthService>();
+
+// Persist the Data Protection key ring so encrypted sensitive config values stay
+// decryptable across app restarts. Keys are written to a stable folder that can be
+// overridden (e.g. an Azure mounted share) via the DataProtection:KeysPath setting.
+var keysPath = builder.Configuration["DataProtection:KeysPath"]
+    ?? Path.Combine(builder.Environment.ContentRootPath, "dp-keys");
+Directory.CreateDirectory(keysPath);
+builder.Services.AddDataProtection()
+    .SetApplicationName("ConfigSystem.Api")
+    .PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+builder.Services.AddSingleton<SensitiveValueProtector>();
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -50,7 +63,20 @@ builder.Services.AddSwaggerGen();
 var allowedOrigins = builder.Configuration.GetSection("Api:AllowedOrigins").Get<string[]>()
     ?? new[] { "http://localhost:5173", "http://localhost:5000" };
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
-    p.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
+{
+    p.AllowAnyHeader().AllowAnyMethod().AllowCredentials();
+    if (builder.Environment.IsDevelopment())
+        // In development allow any localhost/loopback origin so VS Code port
+        // forwarding (which remaps to a different local port) works without
+        // needing to enumerate every possible forwarded-port URL.
+        p.SetIsOriginAllowed(origin =>
+        {
+            if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri)) return false;
+            return uri.Host is "localhost" or "127.0.0.1" or "::1";
+        });
+    else
+        p.WithOrigins(allowedOrigins);
+}));
 
 // Throttle callers by client IP so the API can't be hammered directly.
 var permitLimit = builder.Configuration.GetValue<int?>("Api:RateLimit:PermitLimit") ?? 100;
@@ -144,7 +170,7 @@ try
                     FcbSeeder.EnsureFcbServerScopes(db);
 
                 var basePath = app.Environment.ContentRootPath;
-                var seeder = new GoAnywhereSeeder(db, basePath);
+                var seeder = new GoAnywhereSeeder(db, basePath, app.Services.GetRequiredService<SensitiveValueProtector>());
                 await seeder.SeedAsync();
 
                 tx.Commit();

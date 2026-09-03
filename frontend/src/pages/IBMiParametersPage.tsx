@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
+import { getIsAdmin } from '../api';
 import '../pages/IBMiParametersPage.css';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 const SYSTEM = 'IBMI';
 
 interface Parameter {
@@ -235,6 +236,9 @@ export default function IBMiParametersPage() {
     p.configKey.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Non-admins only see masked sensitive values and cannot edit them.
+  const sensitiveLocked = !!parameterDetails?.isSensitive && !getIsAdmin();
+
   return (
     <div className="ibmi-parameters-page">
       <div className="ibmi-parameters-container">
@@ -377,19 +381,25 @@ export default function IBMiParametersPage() {
                 <div className="edit-group">
                   <input
                     type={parameterDetails.isSensitive ? 'password' : 'text'}
-                    value={editValue}
+                    value={sensitiveLocked ? '' : editValue}
                     onChange={(e) => setEditValue(e.target.value)}
-                    placeholder="Enter new value"
+                    placeholder={sensitiveLocked ? 'Admin access required to edit' : 'Enter new value'}
                     className="edit-input"
+                    disabled={sensitiveLocked}
                   />
                   <button
                     onClick={handleUpdateParameter}
-                    disabled={isSaving}
+                    disabled={isSaving || sensitiveLocked}
                     className="btn-update"
                   >
                     {isSaving ? 'Updating...' : `Update ${bulkUpdateMode && selectedEnvironments.size > 1 ? `All (${selectedEnvironments.size})` : 'Selected'}`}
                   </button>
                 </div>
+                {sensitiveLocked && (
+                  <div className="message message-error">
+                    This is a sensitive value. Only admin users can view or edit it.
+                  </div>
+                )}
                 {message && (
                   <div className={`message message-${message.type}`}>
                     {message.text}
@@ -423,7 +433,7 @@ export default function IBMiParametersPage() {
                           <td className="project-name">{config.projectName}</td>
                           <td className="project-path">{config.projectPath}</td>
                           <td className="config-value">
-                            {config.isSensitive ? '●●●●●●●●' : config.configValue}
+                            {config.isSensitive && !getIsAdmin() ? '●●●●●●●●' : (config.actualValue ?? config.configValue)}
                           </td>
                         </tr>
                       ))}

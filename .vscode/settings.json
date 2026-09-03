@@ -1,0 +1,15 @@
+{
+  "remote.portsAttributes": {
+    "5173": {
+      "label": "Frontend (Vite)",
+      "onAutoForward": "openBrowser"
+    },
+    "5000": {
+      "label": "Backend (API)",
+      "onAutoForward": "silent"
+    }
+  },
+  "remote.otherPortsAttributes": {
+    "onAutoForward": "ignore"
+  }
+}

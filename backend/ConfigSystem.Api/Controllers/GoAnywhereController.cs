@@ -1,5 +1,6 @@
 using ConfigSystem.Api.Data;
 using ConfigSystem.Api.Models;
+using ConfigSystem.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,15 +13,18 @@ public class GoAnywhereController : ControllerBase
     private readonly ConfigDbContext _context;
     private readonly ILogger<GoAnywhereController> _logger;
     private readonly IConfiguration _configuration;
+    private readonly SensitiveValueProtector _protector;
 
     public GoAnywhereController(
         ConfigDbContext context,
         ILogger<GoAnywhereController> logger,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        SensitiveValueProtector protector)
     {
         _context = context;
         _logger = logger;
         _configuration = configuration;
+        _protector = protector;
     }
 
     /// <summary>
@@ -39,6 +43,16 @@ public class GoAnywhereController : ControllerBase
         Request.Headers.TryGetValue("X-Config-Source", out var source);
         return source.ToString() ?? "Dev";
     }
+
+    // Masked placeholder shown to non-admin users in place of sensitive values.
+    private const string SensitiveMask = "●●●●●●●●";
+
+    // Only admins (flagged at login, stored in session) may see decrypted secrets.
+    private bool IsAdmin() => HttpContext.Session.GetString("isAdmin") == "1";
+
+    // Returns the clear-text value for admins, otherwise a masked placeholder.
+    private string? RevealForAdmin(string? storedValue) =>
+        IsAdmin() ? _protector.Unprotect(storedValue) : SensitiveMask;
 
     private string GetChangedBy()
     {
@@ -214,6 +228,10 @@ public class GoAnywhereController : ControllerBase
                 })
                 .ToListAsync();
 
+            foreach (var c in configs)
+                if (c.IsSensitive)
+                    c.ConfigValue = RevealForAdmin(c.ConfigValue);
+
             _logger.LogInformation($"Retrieved {configs.Count} configurations for project {projectId}, environment {environment}");
             return Ok(configs);
         }
@@ -270,7 +288,9 @@ public class GoAnywhereController : ControllerBase
                 ProjectId = request.ProjectId,
                 Environment = request.Environment,
                 ConfigKey = request.ConfigKey,
-                ConfigValue = request.ConfigValue,
+                ConfigValue = (request.IsSensitive ?? false)
+                    ? _protector.Protect(request.ConfigValue)
+                    : request.ConfigValue,
                 Description = request.Description,
                 IsRequired = request.IsRequired ?? false,
                 IsSensitive = request.IsSensitive ?? false,
@@ -291,7 +311,7 @@ public class GoAnywhereController : ControllerBase
                 {
                     Id = config.Id,
                     ConfigKey = config.ConfigKey,
-                    ConfigValue = config.ConfigValue,
+                    ConfigValue = config.IsSensitive ? RevealForAdmin(config.ConfigValue) : config.ConfigValue,
                     Description = config.Description,
                     IsRequired = config.IsRequired,
                     IsSensitive = config.IsSensitive
@@ -334,20 +354,22 @@ public class GoAnywhereController : ControllerBase
 
             var oldValue = config.ConfigValue;
 
-            config.ConfigValue = request.ConfigValue;
+            config.ConfigValue = config.IsSensitive
+                ? _protector.Protect(request.ConfigValue)
+                : request.ConfigValue;
             config.LastModifiedDate = DateTime.UtcNow;
-            AddAuditLog(config, project.Name, "UPDATE", oldValue, request.ConfigValue);
+            AddAuditLog(config, project.Name, "UPDATE", oldValue, config.ConfigValue);
 
             _context.GoAnywhereConfigs.Update(config);
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation($"Updated configuration {id}: {config.ConfigKey} = {request.ConfigValue}");
+            _logger.LogInformation($"Updated configuration {id}: {config.ConfigKey}");
 
             return Ok(new GoAnywhereConfigDto
             {
                 Id = config.Id,
                 ConfigKey = config.ConfigKey,
-                ConfigValue = config.ConfigValue,
+                ConfigValue = config.IsSensitive ? RevealForAdmin(config.ConfigValue) : config.ConfigValue,
                 Description = config.Description,
                 IsRequired = config.IsRequired,
                 IsSensitive = config.IsSensitive
@@ -636,8 +658,17 @@ public class GoAnywhereController : ControllerBase
                 .ThenBy(p => p.ConfigKey)
                 .ToListAsync();
 
+            var result = parameters.Select(p => new
+            {
+                p.ConfigKey,
+                p.Environment,
+                p.ProjectCount,
+                SampleValue = p.IsSensitive ? RevealForAdmin(p.SampleValue) : p.SampleValue,
+                p.IsSensitive
+            }).ToList();
+
             _logger.LogInformation($"Retrieved {parameters.Count} unique parameter keys");
-            return Ok(parameters);
+            return Ok(result);
         }
         catch (Exception ex)
         {
@@ -680,7 +711,7 @@ public class GoAnywhereController : ControllerBase
                     ProjectName = c.Project!.Name,
                     ProjectPath = c.Project!.ProjectPath,
                     ConfigValue = c.IsSensitive ? "●●●●●●●●" : c.ConfigValue,
-                    ActualValue = c.ConfigValue,
+                    ActualValue = c.IsSensitive ? RevealForAdmin(c.ConfigValue) : c.ConfigValue,
                     IsSensitive = c.IsSensitive
                 }).ToList()
             };
@@ -722,10 +753,12 @@ public class GoAnywhereController : ControllerBase
             foreach (var config in configs)
             {
                 var oldValue = config.ConfigValue;
-                config.ConfigValue = request.ConfigValue;
+                config.ConfigValue = config.IsSensitive
+                    ? _protector.Protect(request.ConfigValue)
+                    : request.ConfigValue;
                 config.LastModifiedDate = DateTime.UtcNow;
                 var projectName = config.Project?.Name ?? $"Project-{config.ProjectId}";
-                AddAuditLog(config, projectName, "UPDATE", oldValue, request.ConfigValue);
+                AddAuditLog(config, projectName, "UPDATE", oldValue, config.ConfigValue);
                 updateCount++;
             }
 
@@ -780,10 +813,12 @@ public class GoAnywhereController : ControllerBase
             foreach (var config in configs)
             {
                 var oldValue = config.ConfigValue;
-                config.ConfigValue = request.ConfigValue;
+                config.ConfigValue = config.IsSensitive
+                    ? _protector.Protect(request.ConfigValue)
+                    : request.ConfigValue;
                 config.LastModifiedDate = DateTime.UtcNow;
                 var projectName = config.Project?.Name ?? $"Project-{config.ProjectId}";
-                AddAuditLog(config, projectName, "UPDATE", oldValue, request.ConfigValue);
+                AddAuditLog(config, projectName, "UPDATE", oldValue, config.ConfigValue);
                 updateCount++;
 
                 if (!envUpdated.ContainsKey(config.Environment))
@@ -918,6 +953,15 @@ public class GoAnywhereController : ControllerBase
                 })
                 .ToListAsync();
 
+            var parameters = configs.Select(c => new
+            {
+                c.ConfigKey,
+                ConfigValue = c.IsSensitive ? _protector.Unprotect(c.ConfigValue) : c.ConfigValue,
+                c.Description,
+                c.IsRequired,
+                c.IsSensitive
+            }).ToList();
+
             _logger.LogInformation(
                 "External RAW GET: {Count} parameters for project '{Project}' env '{Env}'",
                 configs.Count, normalizedProjectName, normalizedEnvironment);
@@ -926,8 +970,8 @@ public class GoAnywhereController : ControllerBase
             {
                 ProjectName = project.Name,
                 Environment = normalizedEnvironment,
-                ParameterCount = configs.Count,
-                Parameters = configs
+                ParameterCount = parameters.Count,
+                Parameters = parameters
             });
         }
         catch (Exception ex)

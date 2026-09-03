@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { getSource } from "../api";
+import { useState, useEffect, useRef } from "react";
+import { getSource, getIsAdmin } from "../api";
 import type {
   GAProject,
   GAConfig,
@@ -75,6 +75,18 @@ export default function ProjectsTab({
   const [editingConfigId, setEditingConfigId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
   const [actionConfigId, setActionConfigId] = useState<number | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const startEdit = (config: GAConfig) => {
     setEditingConfigId(config.id);
@@ -122,37 +134,44 @@ export default function ProjectsTab({
   return (
     <div>
       <div className="ga-controls">
-        <div className="control-group">
+        <div className="control-group" ref={dropdownRef} style={{ position: "relative" }}>
           <label htmlFor="project-search">Search Projects:</label>
           <input
             id="project-search"
-            type="search"
+            type="text"
             placeholder="Search project name..."
             value={projectSearch}
-            onChange={(e) => setProjectSearch(e.target.value)}
+            onChange={(e) => {
+              setProjectSearch(e.target.value);
+              setSelectedProjectId(null);
+              setShowDropdown(true);
+            }}
+            onFocus={() => setShowDropdown(true)}
             className="search-input"
             disabled={loading}
+            autoComplete="off"
           />
-        </div>
-
-        <div className="control-group">
-          <label htmlFor="project-select">Select Project:</label>
-          <select
-            id="project-select"
-            value={selectedProjectId || ""}
-            onChange={(e) => setSelectedProjectId(parseInt(e.target.value) || null)}
-            className="select-field"
-            disabled={loading}
-          >
-            <option value="">-- Choose a Project --</option>
-            {filteredProjects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-                {p.description ? ` - ${p.description}` : ""}
-              </option>
-            ))}
-          </select>
-          {projectSearch && (
+          {showDropdown && filteredProjects.length > 0 && (
+            <div className="project-dropdown">
+              {filteredProjects.map((p) => (
+                <div
+                  key={p.id}
+                  className={`project-dropdown-item${selectedProjectId === p.id ? " selected" : ""}`}
+                  onClick={() => {
+                    setSelectedProjectId(p.id);
+                    setProjectSearch(p.name);
+                    setShowDropdown(false);
+                  }}
+                >
+                  <span className="dropdown-project-name">{p.name}</span>
+                  {p.description && (
+                    <span className="dropdown-project-desc">{p.description}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {projectSearch && !showDropdown && (
             <span className="subtle" style={{ marginTop: "4px" }}>
               {filteredProjects.length} of {projects.length} projects
             </span>
@@ -344,7 +363,8 @@ export default function ProjectsTab({
                               <button
                                 className="btn-row-action"
                                 onClick={() => startEdit(config)}
-                                disabled={saving || actionConfigId === config.id}
+                                disabled={saving || actionConfigId === config.id || (config.isSensitive && !getIsAdmin())}
+                                title={config.isSensitive && !getIsAdmin() ? "Admin access required" : undefined}
                               >
                                 Edit
                               </button>

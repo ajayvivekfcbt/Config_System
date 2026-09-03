@@ -12,10 +12,19 @@ namespace ConfigSystem.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly ILogger<AuthController> _logger;
+    private readonly IConfiguration _configuration;
 
-    public AuthController(ILogger<AuthController> logger)
+    public AuthController(ILogger<AuthController> logger, IConfiguration configuration)
     {
         _logger = logger;
+        _configuration = configuration;
+    }
+
+    // A user is an admin when their id appears in the Auth:AdminUsers config list.
+    private bool IsAdminUser(string userId)
+    {
+        var admins = _configuration.GetSection("Auth:AdminUsers").Get<string[]>() ?? Array.Empty<string>();
+        return admins.Any(a => string.Equals(a?.Trim(), userId.Trim(), StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -35,14 +44,17 @@ public class AuthController : ControllerBase
 
         try
         {
+            var isAdmin = IsAdminUser(request.UserId);
             HttpContext.Session.SetString("uid", request.UserId);
-            _logger.LogInformation("User {UserId} logged in successfully", request.UserId);
-            
+            HttpContext.Session.SetString("isAdmin", isAdmin ? "1" : "0");
+            _logger.LogInformation("User {UserId} logged in successfully (admin={IsAdmin})", request.UserId, isAdmin);
+
             return Ok(new LoginResponse 
             { 
                 Message = "Login successful",
                 UserId = request.UserId,
-                IsAuthenticated = true
+                IsAuthenticated = true,
+                IsAdmin = isAdmin
             });
         }
         catch (Exception ex)
@@ -62,6 +74,7 @@ public class AuthController : ControllerBase
         try
         {
             HttpContext.Session.Remove("uid");
+            HttpContext.Session.Remove("isAdmin");
             _logger.LogInformation("User logged out");
             
             return Ok(new LogoutResponse { Message = "Logout successful" });
@@ -86,7 +99,8 @@ public class AuthController : ControllerBase
         return Ok(new StatusResponse 
         { 
             IsAuthenticated = isAuthenticated,
-            UserId = userId
+            UserId = userId,
+            IsAdmin = isAuthenticated && HttpContext.Session.GetString("isAdmin") == "1"
         });
     }
 }
@@ -108,6 +122,7 @@ public class LoginResponse
     public string Message { get; set; } = "";
     public string UserId { get; set; } = "";
     public bool IsAuthenticated { get; set; }
+    public bool IsAdmin { get; set; }
 }
 
 /// <summary>
@@ -125,4 +140,5 @@ public class StatusResponse
 {
     public bool IsAuthenticated { get; set; }
     public string? UserId { get; set; }
+    public bool IsAdmin { get; set; }
 }

@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { api, getSource, setSource, setAuth, SOURCES, Source } from "../api";
+import { api, getSource, setSource, setAuth, setIsAdmin, SOURCES, Source } from "../api";
 
 export default function LoginPage({ onLogin }: { onLogin: (userId: string, source: Source) => void }) {
   const [userId, setUserId] = useState("");
@@ -16,6 +16,7 @@ export default function LoginPage({ onLogin }: { onLogin: (userId: string, sourc
     try {
       const r = await api.login(userId, password);
       setAuth(r.userId, password);
+      setIsAdmin(r.isAdmin ?? false);
       onLogin(r.userId, source);
     } catch {
       setError("Sign-in failed. Check your AS/400 user ID and password.");
