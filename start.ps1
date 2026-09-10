@@ -74,9 +74,9 @@ if (-not (Test-Path (Join-Path $backend "ConfigSystem.Api.csproj"))) {
 # Backend -> http://127.0.0.1:5000
 Write-Host "Backend  : http://127.0.0.1:5000" -ForegroundColor Green
 Write-Host "Starting backend from: $backend" -ForegroundColor Gray
-# Skip database seeding at startup unless -Seed is passed (e.g. first run).
-$skipSeeding = if ($Seed) { 'false' } else { 'true' }
-$backendCmd = "cd `"$backend`"; `$Host.UI.RawUI.WindowTitle = 'Configuration Application - Backend'; `$env:ASPNETCORE_URLS = 'http://127.0.0.1:5000'; `$env:ASPNETCORE_ENVIRONMENT = 'Development'; `$env:CONFIGSYSTEM_SKIP_SEEDING = '$skipSeeding'; dotnet run --no-launch-profile 2>&1"
+# Run GoAnywhere seeding only when explicitly requested with -Seed.
+$seedOnStartup = if ($Seed) { 'true' } else { 'false' }
+$backendCmd = "cd `"$backend`"; `$Host.UI.RawUI.WindowTitle = 'Configuration Application - Backend'; `$env:ASPNETCORE_URLS = 'http://127.0.0.1:5000'; `$env:ASPNETCORE_ENVIRONMENT = 'Development'; `$env:Database__SeedOnStartup = '$seedOnStartup'; dotnet run --no-launch-profile 2>&1"
 Start-Process powershell -ArgumentList "-NoExit", "-Command", $backendCmd
 
 # Frontend -> http://localhost:5173

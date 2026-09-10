@@ -64,8 +64,9 @@ public class GoAnywhereController : ControllerBase
 
     private string GetChangedBy()
     {
-        Request.Headers.TryGetValue("X-User-Id", out var userId);
-        var normalized = userId.ToString()?.Trim();
+        var normalized = HttpContext.Session.GetString("uid")?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized) && IsServiceCall())
+            normalized = Request.Headers["X-User-Id"].ToString().Trim();
         return string.IsNullOrWhiteSpace(normalized) ? "unknown" : normalized;
     }
 

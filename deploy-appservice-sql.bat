@@ -31,14 +31,23 @@ set resourceGroup=config-system-rg
 set location=eastus
 set appServicePlan=config-system-plan
 set sqlServer=configsystem-sql-%random%
-set sqlUser=sqladmin
-set sqlPassword=YourPassword123!
+set sqlUser=%SQL_USER%
+set sqlPassword=%SQL_PASSWORD%
 set backendName=configsystem-api-prod
 set frontendName=configsystem-web-prod
 
 echo Resource Group: %resourceGroup%
 echo SQL Server: %sqlServer%
 echo.
+
+if "%sqlUser%"=="" (
+  echo ERROR: Set SQL_USER in the environment before running this legacy script.
+  exit /b 1
+)
+if "%sqlPassword%"=="" (
+  echo ERROR: Set SQL_PASSWORD in the environment before running this legacy script.
+  exit /b 1
+)
 
 REM Create resource group
 echo Creating resource group: %resourceGroup%

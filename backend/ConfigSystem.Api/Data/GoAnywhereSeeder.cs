@@ -427,8 +427,8 @@ public class GoAnywhereSeeder
             ("LocalDirectory", "resource:smb://{project}/{env}/", false),
             ("RemoteDirectory", "resource:ftp://ftp.{env}.example.com/{project}/", false),
             ("ApiEndpoint", "https://api.{env}.example.com/goanywhere", false),
-            ("ApiKey", "sk-{env}-{project}-key-12345", true),
-            ("ApiSecret", "secret-{env}-{project}-value-67890", true),
+            ("ApiKey", "[secret-reference-required]", true),
+            ("ApiSecret", "[secret-reference-required]", true),
             ("RetryAttempts", "3", false),
             ("RetryDelaySeconds", "60", false),
             ("Timeout", "300", false),
@@ -443,7 +443,7 @@ public class GoAnywhereSeeder
             ("DatabasePort", "5432", false),
             ("DatabaseName", "{project}_{env}", false),
             ("DatabaseUser", "gauser_{env}", false),
-            ("DatabasePassword", "dbpass_{env}_{project}", true),
+            ("DatabasePassword", "[secret-reference-required]", true),
             ("SSLEnabled", "true", false),
             ("SSLCertPath", "/etc/ssl/certs/{env}/{project}.pem", false),
             ("ArchiveEnabled", "true", false),
@@ -898,7 +898,7 @@ public class GoAnywhereSeeder
   <variable name=""OutputFile"" value=""DATCOMN.CRHFMRAW"" />
   <variable name=""CSVfile"" value=""/CRHFMUpload.csv"" />
   <variable name=""User"" value=""UCSQLFIN"" />
-  <variable name=""Password"" value=""bendovr1"" />
+    <variable name=""Password"" value=""[secret-reference-required]"" />
   <variable name=""Host"" value=""FCB"" />
 </project>
 <project name=""CRUpload"" description=""User Adjustments upload to Corp Rptng"">
@@ -907,7 +907,7 @@ public class GoAnywhereSeeder
   <variable name=""OutputFile"" value=""DATCOMN.CRUADJRAW"" />
   <variable name=""CSVfile"" value=""/CRUploadQtrly.csv"" />
   <variable name=""User"" value=""UCSQLFIN"" />
-  <variable name=""Password"" value=""bendovr1"" />
+    <variable name=""Password"" value=""[secret-reference-required]"" />
   <variable name=""Host"" value=""FCB"" />
 </project>
 <project name=""DistributionSave"" description=""Copy the /Distribution folder contents"" />
@@ -1037,7 +1037,7 @@ public class GoAnywhereSeeder
   <variable name=""OutputFile"" value=""DATCOMN.CRTPGMVRAW"" />
   <variable name=""CSVfile"" value=""/QtrlyRptgExtract.csv"" />
   <variable name=""User"" value=""UCSQLFIN"" />
-  <variable name=""Password"" value=""bendovr1"" />
+    <variable name=""Password"" value=""[secret-reference-required]"" />
   <variable name=""Host"" value=""FCB"" />
 </project>
 <project name=""TestAPI"" description=""Test API call with Params"">

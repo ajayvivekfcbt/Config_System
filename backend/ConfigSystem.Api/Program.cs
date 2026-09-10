@@ -103,9 +103,23 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
-// Create and seed a database for every source (Dev and FCB)
+static string GetAuditUser(HttpContext http)
+{
+    var userId = http.Session.GetString("uid")?.Trim();
+    if (!string.IsNullOrWhiteSpace(userId)) return userId;
+
+    var serviceUser = http.Items.TryGetValue("ServiceAuth", out var auth) && auth is true
+        ? http.Request.Headers["X-User-Id"].ToString().Trim()
+        : string.Empty;
+    return string.IsNullOrWhiteSpace(serviceUser) ? "unknown" : serviceUser;
+}
+
+// Ensure the configured databases exist. Data import and GoAnywhere seeding are
+// opt-in so normal application starts do not rewrite or inspect migrated data.
 try
 {
+    var importLegacyData = app.Configuration.GetValue<bool>("Database:ImportLegacyData");
+    var seedOnStartup = app.Configuration.GetValue<bool>("Database:SeedOnStartup");
     foreach (var source in ConfigSource.Known)
     {
         try
@@ -114,13 +128,17 @@ try
             var options = new DbContextOptionsBuilder<ConfigDbContext>().UseSqlServer(connectionString).Options;
             using var db = new ConfigDbContext(options);
             db.Database.EnsureCreated();
+
+            if (!importLegacyData && !seedOnStartup)
+                continue;
+
             // Wrap all seeding in a transaction so partial failures leave the DB clean.
             using var tx = db.Database.BeginTransaction();
             try
             {
                 // Legacy IBM i import/staging is opt-in. The GoAnywhere production
                 // deployment uses the SQL Server data migrated before installation.
-                if (app.Configuration.GetValue<bool>("Database:ImportLegacyData"))
+                if (importLegacyData)
                 {
                     if (!DataImporter.ImportAll(db))
                         SeedData.EnsureSeeded(db);
@@ -129,9 +147,12 @@ try
                         FcbSeeder.EnsureFcbServerScopes(db);
                 }
 
-                var basePath = app.Environment.ContentRootPath;
-                var seeder = new GoAnywhereSeeder(db, basePath, app.Services.GetRequiredService<SensitiveValueProtector>());
-                await seeder.SeedAsync();
+                if (seedOnStartup)
+                {
+                    var basePath = app.Environment.ContentRootPath;
+                    var seeder = new GoAnywhereSeeder(db, basePath, app.Services.GetRequiredService<SensitiveValueProtector>());
+                    await seeder.SeedAsync();
+                }
 
                 tx.Commit();
             }
@@ -304,7 +325,7 @@ varValGrp.MapPost("/", async (VariableValue input, HttpContext http, ConfigDbCon
         OldValue = null,
         NewValue = varDef?.ValuesAreRestricted == true ? "●●●●●●●●" : input.Value,
         Action = "CREATE",
-        ChangedBy = http.Request.Headers["X-User-Id"].ToString().Trim() ?? "unknown",
+        ChangedBy = GetAuditUser(http),
         IsSensitive = varDef?.ValuesAreRestricted ?? false,
         ChangedAtUtc = DateTime.UtcNow
     };
@@ -344,7 +365,7 @@ varValGrp.MapPut("/{id:int}", async (int id, VariableValue input, HttpContext ht
         OldValue = varDef?.ValuesAreRestricted == true ? "●●●●●●●●" : oldValue,
         NewValue = varDef?.ValuesAreRestricted == true ? "●●●●●●●●" : input.Value,
         Action = "UPDATE",
-        ChangedBy = http.Request.Headers["X-User-Id"].ToString().Trim() ?? "unknown",
+        ChangedBy = GetAuditUser(http),
         IsSensitive = varDef?.ValuesAreRestricted ?? false,
         ChangedAtUtc = DateTime.UtcNow
     };
@@ -379,7 +400,7 @@ varValGrp.MapDelete("/{id:int}", async (int id, HttpContext http, ConfigDbContex
         OldValue = varDef?.ValuesAreRestricted == true ? "●●●●●●●●" : existing.Value,
         NewValue = null,
         Action = "DELETE",
-        ChangedBy = http.Request.Headers["X-User-Id"].ToString().Trim() ?? "unknown",
+        ChangedBy = GetAuditUser(http),
         IsSensitive = varDef?.ValuesAreRestricted ?? false,
         ChangedAtUtc = DateTime.UtcNow
     };

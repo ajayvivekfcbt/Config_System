@@ -146,16 +146,7 @@ TrustServerCertificate=False;
 Connection Timeout=30;
 ```
 
-**Example:**
-```
-Server=tcp:configsystem-sql-1234.database.windows.net,1433;
-Initial Catalog=ConfigSystem;
-User ID=sqladmin;
-Password=MySecurePassword123!;
-Encrypt=True;
-TrustServerCertificate=False;
-Connection Timeout=30;
-```
+Use a secret-store or environment variable for `SQL_USER` and `SQL_PASSWORD`; do not put credential values in this document.
 
 ---
 
@@ -165,9 +156,9 @@ Connection Timeout=30;
 
 | Variable | Format | Example |
 |----------|--------|---------|
-| SQL_SERVER_NAME | hostname | configsystem-sql-1234 |
-| SQL_USER | username | sqladmin |
-| SQL_PASSWORD | password | YourSecurePassword123! |
+| SQL_SERVER_NAME | hostname | `<server-name>` |
+| SQL_USER | username | `<secure-user>` |
+| SQL_PASSWORD | password | `<secure-password>` |
 | ASPNETCORE_ENVIRONMENT | environment | Production |
 | REACT_APP_API_URL | URL | https://configsystem-api-prod.azurewebsites.net |
 

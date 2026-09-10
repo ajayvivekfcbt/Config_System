@@ -99,6 +99,9 @@ public class ConfigDbContext : DbContext
             .Property(a => a.IsSensitive)
             .HasConversion(value => value ? "Y" : "N", value => value == "Y")
             .HasColumnType("char(1)");
+        b.Entity<GoAnywhereAuditLog>()
+            .Property(a => a.Id)
+            .ValueGeneratedOnAdd();
         b.Entity<GoAnywhereProject>().Property(p => p.CreatedDate).HasColumnType("datetime2");
         b.Entity<GoAnywhereProject>().Property(p => p.LastModifiedDate).HasColumnType("datetime2");
         b.Entity<GoAnywhereConfig>().Property(c => c.CreatedDate).HasColumnType("datetime2");

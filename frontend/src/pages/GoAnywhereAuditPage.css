@@ -98,6 +98,13 @@
   color: #dbeafe;
 }
 
+:root[data-theme="light"] .ga-audit-table td code {
+  color: #1e293b;
+  background: #ffffff;
+  border-radius: 3px;
+  padding: 1px 3px;
+}
+
 .action-pill {
   display: inline-block;
   border-radius: 999px;
