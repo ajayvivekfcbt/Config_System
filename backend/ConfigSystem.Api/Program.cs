@@ -5,8 +5,6 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.RateLimiting;
 
@@ -36,13 +34,13 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
 });
 
 // The active data source (Dev or FCB) is chosen per request via the
-// X-Config-Source header; each source maps to its own SQLite database.
+// X-Config-Source header; each source maps to its own SQL Server database.
 builder.Services.AddDbContext<ConfigDbContext>((sp, o) =>
 {
     var http = sp.GetRequiredService<IHttpContextAccessor>();
     var config = sp.GetRequiredService<IConfiguration>();
     var source = ConfigSource.Resolve(http.HttpContext);
-    o.UseSqlite(ConfigSource.ConnectionString(config, source));
+    o.UseSqlServer(ConfigSource.ConnectionString(config, source));
 });
 builder.Services.AddScoped<ConfigResolutionService>();
 builder.Services.AddSingleton<As400AuthService>();
@@ -113,64 +111,26 @@ try
         try
         {
             var connectionString = ConfigSource.ConnectionString(app.Configuration, source);
-            var options = new DbContextOptionsBuilder<ConfigDbContext>().UseSqlite(connectionString).Options;
+            var options = new DbContextOptionsBuilder<ConfigDbContext>().UseSqlServer(connectionString).Options;
             using var db = new ConfigDbContext(options);
             db.Database.EnsureCreated();
-            // Keep schema forward-compatible for existing SQLite files created before
-            // audit logging was introduced.
-            db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS ""GAAUDIT"" (
-                ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_GAAUDIT"" PRIMARY KEY AUTOINCREMENT,
-                ""ConfigId"" INTEGER NULL,
-                ""ProjectId"" INTEGER NOT NULL,
-                ""ProjectName"" TEXT NOT NULL,
-                ""Environment"" TEXT NOT NULL,
-                ""ConfigKey"" TEXT NOT NULL,
-                ""OldValue"" TEXT NULL,
-                ""NewValue"" TEXT NULL,
-                ""Action"" TEXT NOT NULL,
-                ""ChangedBy"" TEXT NOT NULL,
-                ""IsSensitive"" INTEGER NOT NULL DEFAULT 0,
-                ""ChangedAtUtc"" TEXT NOT NULL
-            );");
-            db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_GAAUDIT_ChangedAtUtc"" ON ""GAAUDIT"" (""ChangedAtUtc"");");
-            db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_GAAUDIT_ProjectName_Environment_ConfigKey"" ON ""GAAUDIT"" (""ProjectName"", ""Environment"", ""ConfigKey"");");
-            // IBM i Configuration System audit logging table
-            db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS ""IBMIAUDIT"" (
-                ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_IBMIAUDIT"" PRIMARY KEY AUTOINCREMENT,
-                ""ConfigId"" INTEGER NULL,
-                ""VariableDefinitionId"" INTEGER NULL,
-                ""ScopeId"" INTEGER NULL,
-                ""ScopeName"" TEXT NOT NULL,
-                ""VariableDefName"" TEXT NOT NULL,
-                ""ExtentName"" TEXT NOT NULL,
-                ""Environment"" TEXT NOT NULL,
-                ""OldValue"" TEXT NULL,
-                ""NewValue"" TEXT NULL,
-                ""Action"" TEXT NOT NULL,
-                ""ChangedBy"" TEXT NOT NULL,
-                ""IsSensitive"" INTEGER NOT NULL DEFAULT 0,
-                ""ChangedAtUtc"" TEXT NOT NULL
-            );");
-            db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_IBMIAUDIT_ChangedAtUtc"" ON ""IBMIAUDIT"" (""ChangedAtUtc"");");
-            db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_IBMIAUDIT_ScopeName_VariableDefName"" ON ""IBMIAUDIT"" (""ScopeName"", ""VariableDefName"");");
-            // Parameter templates were removed; drop the obsolete table from older DB files.
-            db.Database.ExecuteSqlRaw(@"DROP TABLE IF EXISTS ""GAPARAM"";");
             // Wrap all seeding in a transaction so partial failures leave the DB clean.
             using var tx = db.Database.BeginTransaction();
             try
             {
-                // Prefer the real data exported from IBM i; fall back to the demo seed.
-                if (!DataImporter.ImportAll(db))
-                    SeedData.EnsureSeeded(db);
+                // Legacy IBM i import/staging is opt-in. The GoAnywhere production
+                // deployment uses the SQL Server data migrated before installation.
+                if (app.Configuration.GetValue<bool>("Database:ImportLegacyData"))
+                {
+                    if (!DataImporter.ImportAll(db))
+                        SeedData.EnsureSeeded(db);
 
-                // For the FCB source, seed the local DATCOMN production clone unless the FCB
-                // data has already been staged live from the AS/400.
-                if (source == "Fcb" && !Fcb400Stager.IsStaged(app.Configuration))
-                    FcbSeeder.EnsureFcbServerScopes(db);
+                    if (source == "Fcb" && !Fcb400Stager.IsStaged(app.Configuration))
+                        FcbSeeder.EnsureFcbServerScopes(db);
+                }
 
                 var basePath = app.Environment.ContentRootPath;
-                var environments = app.Configuration.GetSection("GoAnywhere:Environments").Get<string[]>();
-                var seeder = new GoAnywhereSeeder(db, basePath, app.Services.GetRequiredService<SensitiveValueProtector>(), environments);
+                var seeder = new GoAnywhereSeeder(db, basePath, app.Services.GetRequiredService<SensitiveValueProtector>());
                 await seeder.SeedAsync();
 
                 tx.Commit();
@@ -220,21 +180,6 @@ app.UseRateLimiter();
 // All API routes are protected by the server-side session created after IBM i
 // authentication. Do not use client-provided headers as authentication because
 // they can be copied from a browser request and replayed outside the UI.
-var externalApiKey = app.Configuration["Api:ExternalApiKey"];
-
-// Read-only GET endpoints that internal automation (PowerShell scripts, batch jobs,
-// other internal apps) may call without a session or API key. Keep this list tight —
-// it only exposes config reads, never writes.
-static bool IsInternalReadEndpoint(HttpContext context)
-{
-    if (!HttpMethods.IsGet(context.Request.Method)) return false;
-    var path = context.Request.Path.Value ?? string.Empty;
-    return path.StartsWith("/api/goanywhere/parameters/by-project", StringComparison.OrdinalIgnoreCase)
-        || path.StartsWith("/api/goanywhere/environments", StringComparison.OrdinalIgnoreCase)
-        || path.StartsWith("/api/goanywhere/configs", StringComparison.OrdinalIgnoreCase)
-        || path.StartsWith("/api/goanywhere/projects", StringComparison.OrdinalIgnoreCase);
-}
-
 app.Use(async (context, next) =>
 {
     if (context.Request.Path.StartsWithSegments("/api"))
@@ -242,29 +187,7 @@ app.Use(async (context, next) =>
         var path = context.Request.Path.Value ?? string.Empty;
         var isLoginRoute = HttpMethods.IsPost(context.Request.Method)
             && path.Equals("/api/auth/login", StringComparison.OrdinalIgnoreCase);
-
-        // Internal automation is trusted to read config without a session or key.
-        // The matching endpoints are read-only, so this cannot be used to mutate data.
-        var isServiceCall = IsInternalReadEndpoint(context);
-
-        // A shared API key is also accepted (e.g. for callers outside the trusted network).
-        // Only read-only GET requests are honored on this path.
-        if (!isServiceCall
-            && !string.IsNullOrEmpty(externalApiKey)
-            && HttpMethods.IsGet(context.Request.Method)
-            && context.Request.Headers.TryGetValue("X-Api-Key", out var providedKey)
-            && CryptographicOperations.FixedTimeEquals(
-                Encoding.UTF8.GetBytes(providedKey.ToString()),
-                Encoding.UTF8.GetBytes(externalApiKey)))
-        {
-            isServiceCall = true;
-        }
-
-        // Service callers are trusted to receive decrypted sensitive values.
-        if (isServiceCall)
-            context.Items["ServiceAuth"] = true;
-
-        if (!isLoginRoute && !isServiceCall && string.IsNullOrEmpty(context.Session.GetString("uid")))
+        if (!isLoginRoute && string.IsNullOrEmpty(context.Session.GetString("uid")))
         {
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             await context.Response.WriteAsJsonAsync(new { error = "Authentication required." });

@@ -40,6 +40,33 @@
     #eef2f7;
 }
 
+/* Several input styles hardcode a dark background; in light mode that leaves dark text
+   on a dark box. Force readable input colors when the light theme is active. */
+:root[data-theme="light"] .form-input,
+:root[data-theme="light"] .search-input,
+:root[data-theme="light"] .filter-input,
+:root[data-theme="light"] .edit-input,
+:root[data-theme="light"] .inline-edit-input,
+:root[data-theme="light"] .row-edit-input,
+:root[data-theme="light"] input[type="text"],
+:root[data-theme="light"] input[type="number"],
+:root[data-theme="light"] input[type="search"],
+:root[data-theme="light"] input[type="password"],
+:root[data-theme="light"] textarea,
+:root[data-theme="light"] select {
+  background: #ffffff;
+  color: var(--text);
+}
+:root[data-theme="light"] .form-input:focus,
+:root[data-theme="light"] .search-input:focus,
+:root[data-theme="light"] .filter-input:focus {
+  background: #ffffff;
+}
+:root[data-theme="light"] input::placeholder,
+:root[data-theme="light"] textarea::placeholder {
+  color: var(--muted);
+}
+
 * { box-sizing: border-box; }
 body {
   margin: 0;

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Data.SqlClient;
 
 namespace ConfigSystem.Api.Data;
 
@@ -6,7 +7,7 @@ namespace ConfigSystem.Api.Data;
 /// Selects which configuration data source (environment) a request targets.
 /// Mirrors the legacy Dev vs FCB staging model (see UT2080-UT2087) where
 /// config could be read from the local Dev system or the remote FCB system.
-/// Each source maps to its own SQLite database so switching changes which
+/// Each source maps to its own SQL Server database so switching changes which
 /// store the API reads from and writes to.
 /// </summary>
 public static class ConfigSource
@@ -33,9 +34,20 @@ public static class ConfigSource
         return Default;
     }
 
-    /// <summary>Resolves the SQLite connection string for a given source name.</summary>
-    public static string ConnectionString(IConfiguration config, string source) =>
-        config.GetConnectionString(source) ?? $"Data Source=configsystem-{source.ToLowerInvariant()}.db";
+    /// <summary>Resolves the SQL Server connection string for a given source name.</summary>
+    public static string ConnectionString(IConfiguration config, string source)
+    {
+        var configured = config.GetConnectionString(source);
+        if (string.IsNullOrWhiteSpace(configured))
+            throw new InvalidOperationException($"ConnectionStrings:{source} is not configured.");
+
+        var builder = new SqlConnectionStringBuilder(configured);
+        if (!builder.IntegratedSecurity && !string.IsNullOrWhiteSpace(config["SQL_USER"]))
+            builder.UserID = config["SQL_USER"];
+        if (!builder.IntegratedSecurity && !string.IsNullOrWhiteSpace(config["SQL_PASSWORD"]))
+            builder.Password = config["SQL_PASSWORD"];
+        return builder.ConnectionString;
+    }
 
     /// <summary>
     /// The FCB source is the staged master copy and is read-only; only the Dev

@@ -27,3 +27,9 @@ node_modules/
 
 # Documentation
 docs/
+
+# Local scripts and migration utilities
+/scripts/
+!/scripts/Install-ConfigSystem.ps1
+!/scripts/init-db.sql
+/migration/

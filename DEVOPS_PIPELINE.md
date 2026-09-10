@@ -7,8 +7,17 @@
 1. Create an Azure DevOps Environment named `LSAPCFGDEVBE.develop.fcbt`.
 2. Add the target server as a Virtual Machine resource. The agent must run as an account that can stop and start the `ConfigSystem.Api` Windows service and write to the installation folders.
 3. Create the `ConfigSystem.Api` Windows service before the first deployment, pointing to `C:\Apps\ConfigSystem\api\ConfigSystem.Api.exe`.
-4. Keep environment-specific files on the server: `appsettings.Production.json`, `dp-keys`, and SQLite `*.db` files. The installer deliberately preserves them.
+4. Keep environment-specific files on the server: `appsettings.Production.json` and `dp-keys`. The installer deliberately preserves them.
 5. In the pipeline Variables page, change `apiInstallPath`, `frontendInstallPath`, and `apiServiceName` when the server uses different values.
+
+## SQL Server runtime configuration
+
+The GoAnywhere deployment uses the existing SQL Server at `LSAPCFGDEVBE,1433`:
+
+- `Dev` source: database `ConfigSystem_Dev`
+- `Fcb` source: database `ConfigSystem_Fcb`
+
+Configure the Windows service to run under the approved Windows domain/service account. SQL Server uses that Windows identity through `Integrated Security=True`; no SQL username or password is required. Grant that Windows account access to both databases before installation.
 
 ## API isolation
 

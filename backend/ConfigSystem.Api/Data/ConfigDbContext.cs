@@ -90,5 +90,19 @@ public class ConfigDbContext : DbContext
             .HasIndex(a => a.ChangedAtUtc);
         b.Entity<GoAnywhereAuditLog>()
             .HasIndex(a => new { a.ProjectName, a.Environment, a.ConfigKey });
+
+        b.Entity<GoAnywhereConfig>()
+            .Property(c => c.IsSensitive)
+            .HasConversion(value => value ? "Y" : "N", value => value == "Y")
+            .HasColumnType("char(1)");
+        b.Entity<GoAnywhereAuditLog>()
+            .Property(a => a.IsSensitive)
+            .HasConversion(value => value ? "Y" : "N", value => value == "Y")
+            .HasColumnType("char(1)");
+        b.Entity<GoAnywhereProject>().Property(p => p.CreatedDate).HasColumnType("datetime2");
+        b.Entity<GoAnywhereProject>().Property(p => p.LastModifiedDate).HasColumnType("datetime2");
+        b.Entity<GoAnywhereConfig>().Property(c => c.CreatedDate).HasColumnType("datetime2");
+        b.Entity<GoAnywhereConfig>().Property(c => c.LastModifiedDate).HasColumnType("datetime2");
+        b.Entity<GoAnywhereAuditLog>().Property(a => a.ChangedAtUtc).HasColumnType("datetime2");
     }
 }

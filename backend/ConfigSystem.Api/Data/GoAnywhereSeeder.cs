@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using ConfigSystem.Api.Models;
 using ConfigSystem.Api.Services;
 using Microsoft.EntityFrameworkCore;
@@ -42,37 +41,6 @@ public class GoAnywhereSeeder
     {
         try
         {
-            await _context.Database.ExecuteSqlRawAsync(@"
-                CREATE TABLE IF NOT EXISTS GAPROJECT (
-                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    Name TEXT NOT NULL UNIQUE,
-                    Description TEXT,
-                    ProjectPath TEXT,
-                    ContextId INTEGER,
-                    ExtentId INTEGER,
-                    ExtentName TEXT,
-                    CreatedDate TEXT DEFAULT CURRENT_TIMESTAMP,
-                    LastModifiedDate TEXT DEFAULT CURRENT_TIMESTAMP
-                )
-            ");
-
-            await _context.Database.ExecuteSqlRawAsync(@"
-                CREATE TABLE IF NOT EXISTS GACONFIG (
-                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    ProjectId INTEGER NOT NULL,
-                    Environment TEXT NOT NULL,
-                    ConfigKey TEXT NOT NULL,
-                    ConfigValue TEXT,
-                    Description TEXT,
-                    IsRequired INTEGER DEFAULT 0,
-                    IsSensitive INTEGER DEFAULT 0,
-                    CreatedDate TEXT DEFAULT CURRENT_TIMESTAMP,
-                    LastModifiedDate TEXT DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY(ProjectId) REFERENCES GAPROJECT(Id) ON DELETE CASCADE,
-                    UNIQUE(ProjectId, Environment, ConfigKey)
-                )
-            ");
-
             var existingProjects = await _context.GoAnywhereProjects.CountAsync();
             var existingConfigs = await _context.GoAnywhereConfigs.CountAsync();
 
