@@ -1,5 +1,12 @@
 # start.ps1 - Launches the Config System backend (.NET API) and frontend (React/Vite)
-# Usage:  ./start.ps1
+# Usage:  ./start.ps1 [-Kiosk]
+# Example: ./start.ps1 -Kiosk
+
+param(
+    [switch]$Kiosk,
+    [string]$FrontendUrl = "http://localhost:5173",
+    [string]$BrowserPath = ""
+)
 
 $ErrorActionPreference = "Continue"  # Don't stop on errors, continue execution
 $root = $PSScriptRoot
@@ -66,10 +73,10 @@ if (-not (Test-Path (Join-Path $backend "ConfigSystem.Api.csproj"))) {
     exit 1
 }
 
-# Backend -> http://localhost:5198 (Swagger at /swagger)
-Write-Host "Backend  : http://localhost:5198/swagger" -ForegroundColor Green
+# Backend -> http://127.0.0.1:5000
+Write-Host "Backend  : http://127.0.0.1:5000" -ForegroundColor Green
 Write-Host "Starting backend from: $backend" -ForegroundColor Gray
-$backendCmd = "cd `"$backend`"; `$Host.UI.RawUI.WindowTitle = 'Config System - Backend'; dotnet run 2>&1"
+$backendCmd = "cd `"$backend`"; `$Host.UI.RawUI.WindowTitle = 'Configuration Application - Backend'; `$env:ASPNETCORE_URLS = 'http://127.0.0.1:5000'; `$env:ASPNETCORE_ENVIRONMENT = 'Development'; dotnet run --no-launch-profile 2>&1"
 Start-Process powershell -ArgumentList "-NoExit", "-Command", $backendCmd
 
 # Frontend -> http://localhost:5173
@@ -84,3 +91,22 @@ Start-Sleep -Seconds 3
 
 Write-Host "Both started in separate PowerShell windows. Close those windows to stop." -ForegroundColor Cyan
 Write-Host "If backend didn't start, check the backend window for errors." -ForegroundColor Yellow
+
+if ($Kiosk) {
+    $browserCandidates = @(
+        $BrowserPath,
+        "C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        "C:\Program Files\Google\Chrome\Application\chrome.exe",
+        "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+    ) | Where-Object { $_ -and (Test-Path $_) }
+
+    $browser = $browserCandidates | Select-Object -First 1
+
+    if ($browser) {
+        Write-Host "Launching browser in kiosk mode: $browser -> $FrontendUrl" -ForegroundColor Cyan
+        Start-Process -FilePath $browser -ArgumentList @("--kiosk", "--new-window", $FrontendUrl)
+    } else {
+        Write-Host "Kiosk mode requested, but no supported Edge/Chrome browser was found on this machine." -ForegroundColor Yellow
+    }
+}

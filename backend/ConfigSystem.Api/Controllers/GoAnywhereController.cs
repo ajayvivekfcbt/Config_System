@@ -50,9 +50,17 @@ public class GoAnywhereController : ControllerBase
     // Only admins (flagged at login, stored in session) may see decrypted secrets.
     private bool IsAdmin() => HttpContext.Session.GetString("isAdmin") == "1";
 
+    // External automation authenticated by API key (flagged on HttpContext.Items by the
+    // auth middleware) is a trusted service caller and may receive decrypted secrets.
+    private bool IsServiceCall() => HttpContext.Items.TryGetValue("ServiceAuth", out var v) && v is true;
+
     // Returns the clear-text value for admins, otherwise a masked placeholder.
     private string? RevealForAdmin(string? storedValue) =>
         IsAdmin() ? _protector.Unprotect(storedValue) : SensitiveMask;
+
+    // Reveals decrypted values to admins or trusted service callers, otherwise masks them.
+    private string? RevealForCaller(string? storedValue) =>
+        (IsAdmin() || IsServiceCall()) ? _protector.Unprotect(storedValue) : SensitiveMask;
 
     private string GetChangedBy()
     {
@@ -97,14 +105,17 @@ public class GoAnywhereController : ControllerBase
         });
     }
 
-    private bool IsExternalApiKeyValid()
+    /// <summary>
+    /// GET /api/goanywhere/environments
+    /// Returns the configured environment codes from appsettings (GoAnywhere:Environments).
+    /// This is the single source of truth used by external scripts and clients.
+    /// </summary>
+    [HttpGet("environments")]
+    public ActionResult<IEnumerable<string>> GetEnvironments()
     {
-        var expected = _configuration["Api:ExternalApiKey"];
-        if (string.IsNullOrWhiteSpace(expected))
-            return false;
-
-        Request.Headers.TryGetValue("X-External-Api-Key", out var provided);
-        return string.Equals(provided.ToString(), expected, StringComparison.Ordinal);
+        var environments = _configuration.GetSection("GoAnywhere:Environments").Get<string[]>()
+            ?? Array.Empty<string>();
+        return Ok(environments);
     }
 
     /// <summary>
@@ -238,6 +249,56 @@ public class GoAnywhereController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, $"Error retrieving configurations for project {projectId}");
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// GET /api/goanywhere/parameters/by-project?projectName=mRDCgetCardinal&amp;environment=DATO
+    /// Returns the parameter (config key/value) list for a project identified by NAME and
+    /// environment. Intended for external automation: it resolves the project by name in a
+    /// single call and is reachable with an X-Api-Key header (no interactive session required).
+    /// </summary>
+    [HttpGet("parameters/by-project")]
+    public async Task<ActionResult<IEnumerable<GoAnywhereConfigDto>>> GetParametersByProjectName(
+        [FromQuery] string projectName,
+        [FromQuery] string environment = "DEV")
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(projectName))
+                return BadRequest(new { error = "projectName is required" });
+
+            var project = await _context.GoAnywhereProjects
+                .FirstOrDefaultAsync(p => p.Name == projectName);
+
+            if (project is null)
+                return NotFound(new { error = $"Project '{projectName}' not found" });
+
+            var configs = await _context.GoAnywhereConfigs
+                .Where(c => c.ProjectId == project.Id && c.Environment == environment)
+                .OrderBy(c => c.ConfigKey)
+                .Select(c => new GoAnywhereConfigDto
+                {
+                    Id = c.Id,
+                    ConfigKey = c.ConfigKey,
+                    ConfigValue = c.ConfigValue,
+                    Description = c.Description,
+                    IsRequired = c.IsRequired,
+                    IsSensitive = c.IsSensitive
+                })
+                .ToListAsync();
+
+            foreach (var c in configs)
+                if (c.IsSensitive)
+                    c.ConfigValue = RevealForCaller(c.ConfigValue);
+
+            _logger.LogInformation($"Retrieved {configs.Count} parameters for project '{projectName}' (id {project.Id}), environment {environment}");
+            return Ok(configs);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Error retrieving parameters for project '{projectName}'");
             return StatusCode(500, new { error = ex.Message });
         }
     }
@@ -847,140 +908,7 @@ public class GoAnywhereController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// GET /api/goanywhere/projects/{projectName}/parameters?environment=DEV
-    /// Public read-only endpoint — returns parameters for a project identified by name.
-    /// No session or auth required; intended for external/automated callers.
-    /// </summary>
-    [HttpGet("projects/{projectName}/parameters")]
-    public async Task<ActionResult<object>> GetParametersByProjectName(
-        string projectName,
-        [FromQuery] string environment = "DEV")
-    {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(projectName))
-                return BadRequest(new { error = "projectName is required" });
-
-            if (string.IsNullOrWhiteSpace(environment))
-                return BadRequest(new { error = "environment is required" });
-
-            var normalizedProjectName = projectName.Trim().Trim('"', '\'');
-            var normalizedEnvironment = environment.Trim().Trim('"', '\'');
-
-            var project = await _context.GoAnywhereProjects
-                .AsNoTracking()
-                .FirstOrDefaultAsync(p => p.Name.ToLower() == normalizedProjectName.ToLower());
-
-            if (project == null)
-                return NotFound(new { error = $"Project '{normalizedProjectName}' not found" });
-
-            var configs = await _context.GoAnywhereConfigs
-                .AsNoTracking()
-                .Where(c => c.ProjectId == project.Id && c.Environment.ToLower() == normalizedEnvironment.ToLower())
-                .OrderBy(c => c.ConfigKey)
-                .Select(c => new
-                {
-                    ConfigKey = c.ConfigKey,
-                    ConfigValue = c.IsSensitive ? "●●●●●●●●" : c.ConfigValue,
-                    Description = c.Description,
-                    IsRequired = c.IsRequired,
-                    IsSensitive = c.IsSensitive
-                })
-                .ToListAsync();
-
-            _logger.LogInformation(
-                "External GET: {Count} parameters for project '{Project}' env '{Env}'",
-                configs.Count, normalizedProjectName, normalizedEnvironment);
-
-            return Ok(new
-            {
-                ProjectName = project.Name,
-                Environment = normalizedEnvironment,
-                ParameterCount = configs.Count,
-                Parameters = configs
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving parameters for project '{Project}'", projectName);
-            return StatusCode(500, new { error = ex.Message });
-        }
-    }
-
-    /// <summary>
-    /// GET /api/goanywhere/projects/{projectName}/parameters/raw?environment=DEV
-    /// Secure external endpoint — returns unmasked parameter values when a valid
-    /// X-External-Api-Key header is provided.
-    /// </summary>
-    [HttpGet("projects/{projectName}/parameters/raw")]
-    public async Task<ActionResult<object>> GetRawParametersByProjectName(
-        string projectName,
-        [FromQuery] string environment = "DEV")
-    {
-        try
-        {
-            if (!IsExternalApiKeyValid())
-                return StatusCode(403, new { error = "Invalid or missing X-External-Api-Key" });
-
-            if (string.IsNullOrWhiteSpace(projectName))
-                return BadRequest(new { error = "projectName is required" });
-
-            if (string.IsNullOrWhiteSpace(environment))
-                return BadRequest(new { error = "environment is required" });
-
-            var normalizedProjectName = projectName.Trim().Trim('"', '\'');
-            var normalizedEnvironment = environment.Trim().Trim('"', '\'');
-
-            var project = await _context.GoAnywhereProjects
-                .AsNoTracking()
-                .FirstOrDefaultAsync(p => p.Name.ToLower() == normalizedProjectName.ToLower());
-
-            if (project == null)
-                return NotFound(new { error = $"Project '{normalizedProjectName}' not found" });
-
-            var configs = await _context.GoAnywhereConfigs
-                .AsNoTracking()
-                .Where(c => c.ProjectId == project.Id && c.Environment.ToLower() == normalizedEnvironment.ToLower())
-                .OrderBy(c => c.ConfigKey)
-                .Select(c => new
-                {
-                    ConfigKey = c.ConfigKey,
-                    ConfigValue = c.ConfigValue,
-                    Description = c.Description,
-                    IsRequired = c.IsRequired,
-                    IsSensitive = c.IsSensitive
-                })
-                .ToListAsync();
-
-            var parameters = configs.Select(c => new
-            {
-                c.ConfigKey,
-                ConfigValue = c.IsSensitive ? _protector.Unprotect(c.ConfigValue) : c.ConfigValue,
-                c.Description,
-                c.IsRequired,
-                c.IsSensitive
-            }).ToList();
-
-            _logger.LogInformation(
-                "External RAW GET: {Count} parameters for project '{Project}' env '{Env}'",
-                configs.Count, normalizedProjectName, normalizedEnvironment);
-
-            return Ok(new
-            {
-                ProjectName = project.Name,
-                Environment = normalizedEnvironment,
-                ParameterCount = parameters.Count,
-                Parameters = parameters
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving raw parameters for project '{Project}'", projectName);
-            return StatusCode(500, new { error = ex.Message });
-        }
-    }
-
+#if IBMI_CONFIGURATION
     // ============================================================================
     // IBM i Configuration System Audit Logging Endpoints
     // ============================================================================
@@ -1078,6 +1006,7 @@ public class GoAnywhereController : ControllerBase
             ChangedAtUtc = DateTime.UtcNow
         });
     }
+#endif
     }
 
 

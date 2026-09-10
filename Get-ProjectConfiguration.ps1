@@ -14,10 +14,13 @@
     If ProjectName is provided, it will look up the ID first.
 
 .PARAMETER Environment
-    The target environment: DATO, DATI, DATU, DATV, DATN, or FCB.
+    The target environment (e.g. DATO, DATI, DATU, DATV, DATN, FCB). The valid list is
+    defined by the app settings file (GoAnywhere:Environments) and fetched from the API.
 
 .PARAMETER ApiBase
-    The base URL for the ConfigSystem API. Defaults to http://localhost:5198/api
+    The base URL for the ConfigSystem API. Defaults to the CONFIGSYSTEM_API_BASE
+    environment variable (set at install time to the promoted path), or
+    http://localhost:5198/api for local development when that variable is not set.
 
 .PARAMETER Format
     Output format: 'Table' (default), 'Json', 'Csv', or 'Object'
@@ -53,10 +56,12 @@ param(
     [string]$ProjectName,
 
     [Parameter(Mandatory = $true)]
-    [ValidateSet('DATO', 'DATI', 'DATU', 'DATV', 'DATN', 'FCB')]
     [string]$Environment,
 
-    [string]$ApiBase = "http://localhost:5198/api",
+    # Defaults to the installed (promoted) API path via CONFIGSYSTEM_API_BASE, else local dev.
+    [string]$ApiBase = $(if ($env:CONFIGSYSTEM_API_BASE) { $env:CONFIGSYSTEM_API_BASE } else { "http://localhost:5198/api" }),
+
+    [string]$ApiKey = $env:CONFIGSYSTEM_API_KEY,
 
     [ValidateSet('Table', 'Json', 'Csv', 'Object')]
     [string]$Format = 'Table',
@@ -64,12 +69,37 @@ param(
     [switch]$IncludeSensitive
 )
 
+# Internal callers reach the read-only config endpoints without any credential. An
+# optional API key is sent only when supplied, for callers outside the trusted network.
+$RequestHeaders = @{}
+if ($ApiKey) { $RequestHeaders['X-Api-Key'] = $ApiKey }
+
+# The valid environment list lives in the app settings file (GoAnywhere:Environments) and
+# is served by the API, so it never has to be hardcoded here. Falls back to a built-in
+# list only when the API is unreachable.
+function Get-ValidEnvironment {
+    param([string]$ApiBase, [hashtable]$Headers)
+    try {
+        return @(Invoke-RestMethod -Uri "$ApiBase/goanywhere/environments" -Headers $Headers -ErrorAction Stop)
+    }
+    catch {
+        Write-Verbose "Could not fetch environments from API ($_). Using built-in fallback list."
+        return @('DATO', 'DATI', 'DATU', 'DATV', 'DATN', 'FCB')
+    }
+}
+
+$validEnvironments = Get-ValidEnvironment -ApiBase $ApiBase -Headers $RequestHeaders
+if ($Environment -notin $validEnvironments) {
+    Write-Error "Environment '$Environment' is not valid. Configured environments: $($validEnvironments -join ', ')"
+    exit 1
+}
+
 # Helper function to resolve project ID by name
 function Get-ProjectIdByName {
-    param([string]$Name, [string]$ApiBase)
+    param([string]$Name, [string]$ApiBase, [hashtable]$Headers)
     
     try {
-        $projects = Invoke-RestMethod -Uri "$ApiBase/goanywhere/projects" -ErrorAction Stop
+        $projects = Invoke-RestMethod -Uri "$ApiBase/goanywhere/projects" -Headers $Headers -ErrorAction Stop
         $project = $projects | Where-Object { $_.name -eq $Name } | Select-Object -First 1
         
         if ($project) {
@@ -87,7 +117,7 @@ function Get-ProjectIdByName {
 
 # Resolve project ID if using project name
 if ($PSCmdlet.ParameterSetName -eq 'ByName') {
-    $ProjectId = Get-ProjectIdByName -Name $ProjectName -ApiBase $ApiBase
+    $ProjectId = Get-ProjectIdByName -Name $ProjectName -ApiBase $ApiBase -Headers $RequestHeaders
     if (-not $ProjectId) { exit 1 }
 }
 
@@ -95,7 +125,7 @@ if ($PSCmdlet.ParameterSetName -eq 'ByName') {
 try {
     Write-Verbose "Fetching configurations for ProjectId=$ProjectId, Environment=$Environment..."
     
-    $configs = Invoke-RestMethod -Uri "$ApiBase/goanywhere/configs?projectId=$ProjectId&environment=$Environment" -ErrorAction Stop
+    $configs = Invoke-RestMethod -Uri "$ApiBase/goanywhere/configs?projectId=$ProjectId&environment=$Environment" -Headers $RequestHeaders -ErrorAction Stop
     
     if (-not $configs -or $configs.Count -eq 0) {
         Write-Warning "No configurations found for ProjectId=$ProjectId in environment $Environment"

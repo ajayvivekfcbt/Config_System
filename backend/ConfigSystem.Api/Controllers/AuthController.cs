@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using ConfigSystem.Api.Services;
 
 namespace ConfigSystem.Api.Controllers;
 
@@ -13,18 +14,19 @@ public class AuthController : ControllerBase
 {
     private readonly ILogger<AuthController> _logger;
     private readonly IConfiguration _configuration;
+    private readonly As400AuthService _as400Auth;
 
-    public AuthController(ILogger<AuthController> logger, IConfiguration configuration)
+    public AuthController(ILogger<AuthController> logger, IConfiguration configuration, As400AuthService as400Auth)
     {
         _logger = logger;
         _configuration = configuration;
+        _as400Auth = as400Auth;
     }
 
-    // A user is an admin when their id appears in the Auth:AdminUsers config list.
+    // Only UQ IBM i user profiles are administrators.
     private bool IsAdminUser(string userId)
     {
-        var admins = _configuration.GetSection("Auth:AdminUsers").Get<string[]>() ?? Array.Empty<string>();
-        return admins.Any(a => string.Equals(a?.Trim(), userId.Trim(), StringComparison.OrdinalIgnoreCase));
+        return userId.Trim().StartsWith("UQ", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -44,6 +46,13 @@ public class AuthController : ControllerBase
 
         try
         {
+            var (isValid, error) = _as400Auth.Validate(request.UserId, request.Password);
+            if (!isValid)
+            {
+                _logger.LogWarning("Failed IBM i authentication for user {UserId}", request.UserId);
+                return Unauthorized(new { message = "Invalid IBM i user ID or password." });
+            }
+
             var isAdmin = IsAdminUser(request.UserId);
             HttpContext.Session.SetString("uid", request.UserId);
             HttpContext.Session.SetString("isAdmin", isAdmin ? "1" : "0");

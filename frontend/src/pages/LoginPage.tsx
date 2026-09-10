@@ -28,7 +28,7 @@ export default function LoginPage({ onLogin }: { onLogin: (userId: string, sourc
   return (
     <div className="login-wrap">
       <form className="login-card" onSubmit={onSubmit}>
-        <h1>UT Config</h1>
+        <h1>Configuration Application</h1>
         <p className="subtle">Sign in with your IBM i (AS/400) user profile.</p>
         <div className="field">
           <label>Source</label>

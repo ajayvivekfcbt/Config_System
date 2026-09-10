@@ -9,5 +9,21 @@ node_modules/
 *.db-shm
 *.db-wal
 
+# Local credentials and environment settings
+.env
+.env.*
+!.env.example
+*.secrets.json
+*.user
+
+# Machine-specific application configuration
+**/appsettings.Local.json
+**/appsettings.Development.json
+**/appsettings.Production.json
+**/Properties/launchSettings.json
+
+# ASP.NET Data Protection key ring contains encryption keys
+**/dp-keys/
+
 # Documentation
 docs/

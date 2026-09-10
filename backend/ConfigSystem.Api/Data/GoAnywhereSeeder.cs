@@ -16,11 +16,16 @@ public class GoAnywhereSeeder
     private readonly string _basePath;
     private readonly SensitiveValueProtector? _protector;
 
-    public GoAnywhereSeeder(ConfigDbContext context, string basePath = "", SensitiveValueProtector? protector = null)
+    // Fallback used only when appsettings does not supply GoAnywhere:Environments.
+    private static readonly string[] DefaultEnvironments = { "DATO", "DATI", "DATU", "DATV", "DATN", "FCB" };
+    private readonly string[] _environments;
+
+    public GoAnywhereSeeder(ConfigDbContext context, string basePath = "", SensitiveValueProtector? protector = null, string[]? environments = null)
     {
         _context = context;
         _basePath = string.IsNullOrEmpty(basePath) ? Directory.GetCurrentDirectory() : basePath;
         _protector = protector;
+        _environments = (environments is { Length: > 0 }) ? environments : DefaultEnvironments;
     }
 
     // Encrypt any sensitive config values before they are written so passwords/
@@ -386,7 +391,7 @@ public class GoAnywhereSeeder
                 foreach (var (vdfId, _, paramName) in projectVdfs)
                 {
                     // Create config entries for all environments
-                    foreach (var env in new[] { "DATO", "DATI", "DATU", "DATV", "DATN", "FCB" })
+                    foreach (var env in _environments)
                     {
                         var key = (project.Id, env, paramName);
                         if (!configDict.ContainsKey(key))
@@ -447,7 +452,7 @@ public class GoAnywhereSeeder
     private List<GoAnywhereConfig> GenerateFallbackConfigurations(GoAnywhereProject[] projects)
     {
         var configs = new List<GoAnywhereConfig>();
-        var environments = new[] { "DATO", "DATI", "DATU", "DATV", "DATN", "FCB" };
+        var environments = _environments;
 
         var parameterTemplates = new[]
         {
@@ -609,7 +614,7 @@ public class GoAnywhereSeeder
             Console.WriteLine($"   Found {xmlFiles.Length} XML files to process");
 
             int xmlConfigsAdded = 0;
-            var environments = new[] { "DATO", "DATI", "DATU", "DATV", "DATN", "FCB" };
+            var environments = _environments;
 
             foreach (var xmlFile in xmlFiles)
             {
@@ -1077,7 +1082,7 @@ public class GoAnywhereSeeder
             var xmlDoc = new XmlDocument();
             xmlDoc.LoadXml(xmlProjectsData);
             
-            var environments = new[] { "DATO", "DATI", "DATU", "DATV", "DATN", "FCB" };
+            var environments = _environments;
             var projectsProcessed = 0;
             var configsAdded = 0;
 

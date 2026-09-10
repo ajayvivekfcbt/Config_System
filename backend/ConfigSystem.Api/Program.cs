@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.RateLimiting;
 
@@ -106,13 +108,10 @@ var app = builder.Build();
 // Create and seed a database for every source (Dev and FCB)
 try
 {
-    Console.WriteLine("[STARTUP] Initializing databases...");
-    
     foreach (var source in ConfigSource.Known)
     {
         try
         {
-            Console.WriteLine($"[STARTUP] Processing source: {source}");
             var connectionString = ConfigSource.ConnectionString(app.Configuration, source);
             var options = new DbContextOptionsBuilder<ConfigDbContext>().UseSqlite(connectionString).Options;
             using var db = new ConfigDbContext(options);
@@ -170,7 +169,8 @@ try
                     FcbSeeder.EnsureFcbServerScopes(db);
 
                 var basePath = app.Environment.ContentRootPath;
-                var seeder = new GoAnywhereSeeder(db, basePath, app.Services.GetRequiredService<SensitiveValueProtector>());
+                var environments = app.Configuration.GetSection("GoAnywhere:Environments").Get<string[]>();
+                var seeder = new GoAnywhereSeeder(db, basePath, app.Services.GetRequiredService<SensitiveValueProtector>(), environments);
                 await seeder.SeedAsync();
 
                 tx.Commit();
@@ -181,7 +181,6 @@ try
                 throw;
             }
             
-            Console.WriteLine($"[STARTUP] ✓ Source {source} initialized successfully");
         }
         catch (Exception ex)
         {
@@ -190,8 +189,6 @@ try
             // Don't exit, continue with other sources
         }
     }
-    
-    Console.WriteLine("[STARTUP] Database initialization complete");
 }
 catch (Exception ex)
 {
@@ -200,7 +197,6 @@ catch (Exception ex)
     throw;
 }
 
-Console.WriteLine("[STARTUP] Configuring middleware...");
 // Return a generic JSON error for all unhandled exceptions — no stack traces to callers.
 app.UseExceptionHandler(err => err.Run(async ctx =>
 {
@@ -212,79 +208,67 @@ app.UseForwardedHeaders();
 // Only redirect to HTTPS in production; locally the app runs on plain HTTP.
 if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
-app.UseSwagger();
-app.UseSwaggerUI();
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 app.UseSession();
 app.UseCors();
 app.UseRateLimiter();
 
-// Gate every /api call behind a shared app key so the endpoints can only be
-// driven by the web application, not by curl/Postman/Swagger directly.
-var appKey = app.Configuration["Api:AppKey"] ?? "config-system-web-app";
-app.Use(async (context, next) =>
+// All API routes are protected by the server-side session created after IBM i
+// authentication. Do not use client-provided headers as authentication because
+// they can be copied from a browser request and replayed outside the UI.
+var externalApiKey = app.Configuration["Api:ExternalApiKey"];
+
+// Read-only GET endpoints that internal automation (PowerShell scripts, batch jobs,
+// other internal apps) may call without a session or API key. Keep this list tight —
+// it only exposes config reads, never writes.
+static bool IsInternalReadEndpoint(HttpContext context)
 {
-    if (context.Request.Path.StartsWithSegments("/api"))
-    {
-        var requestPath = context.Request.Path.Value ?? string.Empty;
-        var isExternalProjectParametersGet =
-            HttpMethods.IsGet(context.Request.Method) &&
-            Regex.IsMatch(requestPath, @"^/api/goanywhere/projects/[^/]+/parameters$", RegexOptions.IgnoreCase);
+    if (!HttpMethods.IsGet(context.Request.Method)) return false;
+    var path = context.Request.Path.Value ?? string.Empty;
+    return path.StartsWith("/api/goanywhere/parameters/by-project", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith("/api/goanywhere/environments", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith("/api/goanywhere/configs", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith("/api/goanywhere/projects", StringComparison.OrdinalIgnoreCase);
+}
 
-        var isExternalProjectParametersRawGet =
-            HttpMethods.IsGet(context.Request.Method) &&
-            Regex.IsMatch(requestPath, @"^/api/goanywhere/projects/[^/]+/parameters/raw$", RegexOptions.IgnoreCase);
-
-        if (isExternalProjectParametersGet || isExternalProjectParametersRawGet)
-        {
-            await next();
-            return;
-        }
-
-        var provided = context.Request.Headers["X-App-Key"].ToString();
-        if (!string.Equals(provided, appKey, StringComparison.Ordinal))
-        {
-            context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            await context.Response.WriteAsJsonAsync(new
-            {
-                error = "Direct API access is not allowed. Requests must come from the application."
-            });
-            return;
-        }
-    }
-    await next();
-});
-
-// Require an authenticated user for all /api routes except auth and public parameter reads.
-// X-App-Key check runs first so we can trust the X-User-Id header as a session fallback
-// (used to self-heal the session after a server restart without forcing a full re-login).
 app.Use(async (context, next) =>
 {
     if (context.Request.Path.StartsWithSegments("/api"))
     {
         var path = context.Request.Path.Value ?? string.Empty;
-        var isAuthRoute = path.StartsWith("/api/auth", StringComparison.OrdinalIgnoreCase)
-            || path.Equals("/api/login", StringComparison.OrdinalIgnoreCase);
-        var isPublicRead = HttpMethods.IsGet(context.Request.Method)
-            && Regex.IsMatch(path, @"^/api/goanywhere/projects/[^/]+/parameters(/raw)?$", RegexOptions.IgnoreCase);
-        if (!isAuthRoute && !isPublicRead)
+        var isLoginRoute = HttpMethods.IsPost(context.Request.Method)
+            && path.Equals("/api/auth/login", StringComparison.OrdinalIgnoreCase);
+
+        // Internal automation is trusted to read config without a session or key.
+        // The matching endpoints are read-only, so this cannot be used to mutate data.
+        var isServiceCall = IsInternalReadEndpoint(context);
+
+        // A shared API key is also accepted (e.g. for callers outside the trusted network).
+        // Only read-only GET requests are honored on this path.
+        if (!isServiceCall
+            && !string.IsNullOrEmpty(externalApiKey)
+            && HttpMethods.IsGet(context.Request.Method)
+            && context.Request.Headers.TryGetValue("X-Api-Key", out var providedKey)
+            && CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(providedKey.ToString()),
+                Encoding.UTF8.GetBytes(externalApiKey)))
         {
-            var uid = context.Session.GetString("uid");
-            if (string.IsNullOrEmpty(uid))
-            {
-                // X-App-Key was verified above; trust the header to restore the session.
-                var headerUid = context.Request.Headers["X-User-Id"].ToString().Trim();
-                if (!string.IsNullOrEmpty(headerUid))
-                {
-                    context.Session.SetString("uid", headerUid);
-                    uid = headerUid;
-                }
-            }
-            if (string.IsNullOrEmpty(uid))
-            {
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                await context.Response.WriteAsJsonAsync(new { error = "Authentication required." });
-                return;
-            }
+            isServiceCall = true;
+        }
+
+        // Service callers are trusted to receive decrypted sensitive values.
+        if (isServiceCall)
+            context.Items["ServiceAuth"] = true;
+
+        if (!isLoginRoute && !isServiceCall && string.IsNullOrEmpty(context.Session.GetString("uid")))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            await context.Response.WriteAsJsonAsync(new { error = "Authentication required." });
+            return;
         }
     }
     await next();
@@ -292,8 +276,7 @@ app.Use(async (context, next) =>
 
 app.MapControllers();
 
-Console.WriteLine("[STARTUP] ✓ Application ready to receive requests");
-
+#if IBMI_CONFIGURATION
 // Writes are rejected when the read-only (FCB) source is selected.
 static IResult ReadOnlyResult() =>
     Results.Json(new { error = "The FCB source is read-only. Switch to the Dev source to make changes." },
@@ -527,19 +510,12 @@ app.MapPost("/api/fcb/refresh", (FcbRefreshRequest? req, HttpContext http, Confi
     return Results.Json(new { staged = false, error = "FCB AS/400 staging is not configured or failed." },
         statusCode: StatusCodes.Status502BadGateway);
 }).WithTags("fcb");
-
-// Final startup message
-Console.WriteLine("");
-Console.WriteLine("╔════════════════════════════════════════════════════════╗");
-Console.WriteLine("║  Config System API - Starting HTTP Server              ║");
-Console.WriteLine("║  Listening on: http://localhost:5000                  ║");
-Console.WriteLine("║  Swagger UI: http://localhost:5000/swagger            ║");
-Console.WriteLine("║  Ready to accept requests                             ║");
-Console.WriteLine("╚════════════════════════════════════════════════════════╝");
-Console.WriteLine("");
+#endif
 
 app.Run();
 
+#if IBMI_CONFIGURATION
 record LoginRequest(string UserId, string Password);
 record ResolveRequest(string Variable, string? Server, string? Scope, int? VariableId = null);
 record FcbRefreshRequest(string? UserId, string? Password);
+#endif

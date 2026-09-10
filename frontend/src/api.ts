@@ -52,7 +52,6 @@ async function http<T>(method: string, url: string, body?: unknown): Promise<T> 
     headers: {
       "Content-Type": "application/json",
       "X-Config-Source": currentSource,
-      "X-App-Key": "config-system-web-app",
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });

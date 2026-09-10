@@ -12,13 +12,14 @@
 
 .PARAMETER Environment
     The environment to retrieve configurations for (required).
-    Valid values: DATO, DATI, DATU, DATV, DATN, FCB
+    Valid values come from the app settings file (GoAnywhere:Environments), served by the API.
 
 .PARAMETER GoAnywhereUrl
     The base URL of the GoAnywhere server (required).
 
 .PARAMETER ApiKey
-    API key for GoAnywhere authentication (required).
+    API key for GoAnywhere authentication (required). Pass it from a secure
+    secret store or environment variable; it is never stored in this script.
 
 .PARAMETER ConfigApiUrl
     The base URL of the ConfigSystem API (default: http://localhost:5198/api).
@@ -45,7 +46,7 @@
 .EXAMPLE
     .\Invoke-GoAnywhereProject.ps1 -ProjectName "TestAPI" -Environment DATO `
         -GoAnywhereUrl "https://GOANYDEV.develop.fcbt:8001/goanywhere/rest/gacmd/v1/projects" `
-        -ApiKey "9b5ead60-97b3-4c51-a474-fbd6b5b42bfe" `
+        -ApiKey $env:GOANYWHERE_API_KEY `
         -ProjectPath "/dev/Ajay" -SkipCertificateCheck
 #>
 
@@ -55,16 +56,16 @@ param(
     [string]$ProjectName,
 
     [Parameter(Mandatory=$true)]
-    [ValidateSet("DATO", "DATI", "DATU", "DATV", "DATN", "FCB")]
+    [ValidateNotNullOrEmpty()]
     [string]$Environment,
 
     [Parameter(Mandatory=$false)]
     [ValidateNotNullOrEmpty()]
     [string]$GoAnywhereUrl = "https://GOANYDEV.develop.fcbt:8001/goanywhere/rest/gacmd/v1/projects",
 
-    [Parameter(Mandatory=$false)]
+    [Parameter(Mandatory=$true)]
     [ValidateNotNullOrEmpty()]
-    [string]$ApiKey="9b5ead60-97b3-4c51-a474-fbd6b5b42bfe",
+    [string]$ApiKey,
 
     [Parameter(Mandatory=$false)]
     [string]$ConfigApiUrl = "http://localhost:5000/api",
@@ -85,6 +86,26 @@ $ErrorActionPreference = "Stop"
 $script:ConfigApiHeaders = @{
     "X-App-Key"  = "config-system-web-app"
     "X-User-Id"  = "ps-script"
+}
+
+# The valid environment list lives in the app settings file (GoAnywhere:Environments) and
+# is served by the API, so it is never hardcoded here. Falls back to a built-in list only
+# when the API is unreachable.
+function Get-ValidEnvironment {
+    param([string]$ApiBase, [hashtable]$Headers)
+    try {
+        return @(Invoke-RestMethod -Uri "$ApiBase/goanywhere/environments" -Headers $Headers -ErrorAction Stop)
+    }
+    catch {
+        Write-Verbose "Could not fetch environments from API ($_). Using built-in fallback list."
+        return @('DATO', 'DATI', 'DATU', 'DATV', 'DATN', 'FCB')
+    }
+}
+
+$validEnvironments = Get-ValidEnvironment -ApiBase $ConfigApiUrl -Headers $script:ConfigApiHeaders
+if ($Environment -notin $validEnvironments) {
+    Write-Error "Environment '$Environment' is not valid. Configured environments: $($validEnvironments -join ', ')"
+    exit 1
 }
 
 # Handle certificate validation for older PowerShell versions

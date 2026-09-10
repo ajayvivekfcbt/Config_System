@@ -1,0 +1,88 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+variables:
+  buildConfiguration: Release
+  dotnetSdkVersion: 10.0.x
+  apiInstallPath: C:\Apps\ConfigSystem\api
+  frontendInstallPath: C:\Apps\ConfigSystem\frontend
+  apiServiceName: ConfigSystem.Api
+
+stages:
+  - stage: Build
+    displayName: Build application
+    jobs:
+      - job: Build
+        displayName: Build API and frontend
+        pool:
+          vmImage: windows-latest
+        steps:
+          - task: UseDotNet@2
+            displayName: Use .NET SDK
+            inputs:
+              packageType: sdk
+              version: $(dotnetSdkVersion)
+
+          - task: NodeTool@0
+            displayName: Use Node.js 20
+            inputs:
+              versionSpec: 20.x
+
+          - script: dotnet publish backend\ConfigSystem.Api\ConfigSystem.Api.csproj --configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)\api
+            displayName: Publish API
+
+          - script: npm ci && npm run build
+            displayName: Build frontend
+            workingDirectory: frontend
+
+          - task: CopyFiles@2
+            displayName: Stage frontend files
+            inputs:
+              SourceFolder: frontend\dist
+              Contents: '**'
+              TargetFolder: $(Build.ArtifactStagingDirectory)\frontend
+
+          - task: CopyFiles@2
+            displayName: Stage installer
+            inputs:
+              SourceFolder: scripts
+              Contents: Install-ConfigSystem.ps1
+              TargetFolder: $(Build.ArtifactStagingDirectory)\scripts
+
+          - task: PublishPipelineArtifact@1
+            displayName: Publish installation package
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)
+              artifact: config-system
+
+  - stage: DeployDevelop
+    displayName: Install to LSAPCFGDEVBE
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: InstallApplication
+        displayName: Install Config System
+        environment:
+          name: LSAPCFGDEVBE.develop.fcbt
+          resourceType: VirtualMachine
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: config-system
+
+                - powershell: |
+                    & "$(Pipeline.Workspace)\config-system\scripts\Install-ConfigSystem.ps1" `
+                      -PackageRoot "$(Pipeline.Workspace)\config-system" `
+                      -ApiInstallPath "$(apiInstallPath)" `
+                      -FrontendInstallPath "$(frontendInstallPath)" `
+                      -ApiServiceName "$(apiServiceName)"
+                  displayName: Install application
