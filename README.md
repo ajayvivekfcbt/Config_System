@@ -22,8 +22,6 @@ npm install
 npm run dev
 ```
 
-The database (`configsystem.db`) is created and seeded automatically on first run.
-
 ## Features
 
 ### Configuration Management
@@ -36,11 +34,6 @@ The database (`configsystem.db`) is created and seeded automatically on first ru
 - **Variable Management**: Build and pass configuration variables to GoAnywhere at runtime
 - **Project Path Support**: Track and manage project folder paths on the GoAnywhere server
 - **Execution Tracking**: Log and track project execution results
-
-### Data Import/Seeding
-- **CSV Support**: Import projects from CSV files (e.g., `UTCFGXTN.csv`)
-- **XML Support**: Load GoAnywhere project definitions from embedded XML
-- **Multi-Source**: Support for both CSV and XML project sources
 
 ## Database Schema
 
