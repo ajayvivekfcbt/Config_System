@@ -39,14 +39,22 @@ if (-not (Test-Path $frontendSource)) {
     throw "Frontend package was not found at '$frontendSource'."
 }
 
-$service = Get-Service -Name $ApiServiceName -ErrorAction Stop
-if ($service.Status -ne "Stopped") {
+$service = Get-Service -Name $ApiServiceName -ErrorAction SilentlyContinue
+if ($service -and $service.Status -ne "Stopped") {
     Stop-Service -Name $ApiServiceName -Force
     $service.WaitForStatus("Stopped", [TimeSpan]::FromSeconds(60))
 }
 
 Copy-InstallDirectory -Source $apiSource -Destination $ApiInstallPath
 Copy-InstallDirectory -Source $frontendSource -Destination $FrontendInstallPath
+
+if (-not $service) {
+    $apiExe = Join-Path $ApiInstallPath "$ApiServiceName.exe"
+    if (-not (Test-Path $apiExe)) {
+        throw "Service executable was not found at '$apiExe'."
+    }
+    New-Service -Name $ApiServiceName -BinaryPathName "`"$apiExe`"" -DisplayName $ApiServiceName -StartupType Automatic | Out-Null
+}
 
 Start-Service -Name $ApiServiceName
 (Get-Service -Name $ApiServiceName).WaitForStatus("Running", [TimeSpan]::FromSeconds(60))
